@@ -1,0 +1,820 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useCallback, useRef } from 'react';
+     4→import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+     5→import {
+     6→  faDownload,
+     7→  faUpload,
+     8→  faExclamationTriangle,
+     9→  faCheck,
+    10→  faSave,
+    11→  faArrowRight,
+    12→  faArrowLeft,
+    13→  faFileExcel,
+    14→  faTimes,
+    15→} from '@fortawesome/free-solid-svg-icons';
+    16→import { Card, CardContent } from '@/components/ui/card';
+    17→import { Button } from '@/components/ui/button';
+    18→import { Badge } from '@/components/ui/badge';
+    19→import {
+    20→  Table,
+    21→  TableBody,
+    22→  TableCell,
+    23→  TableHead,
+    24→  TableHeader,
+    25→  TableRow,
+    26→} from '@/components/ui/table';
+    27→import { useExamStore } from '@/lib/store';
+    28→import type { ImportError } from '@/lib/types';
+    29→
+    30→// ---------------------------------------------------------------------------
+    31→// xlsx lazy import type
+    32→// ---------------------------------------------------------------------------
+    33→type XLSXType = typeof import('xlsx');
+    34→
+    35→// ---------------------------------------------------------------------------
+    36→// Mock validation data types
+    37→// ---------------------------------------------------------------------------
+    38→interface ParsedRow {
+    39→  rowIndex: number;
+    40→  type: string;
+    41→  subject: string;
+    42→  grade: string;
+    43→  topic: string;
+    44→  difficulty: string;
+    45→  questionText: string;
+    46→  options: string;
+    47→  correctAnswer: string;
+    48→  isValid: boolean;
+    49→  errors: string[];
+    50→}
+    51→
+    52→// ---------------------------------------------------------------------------
+    53→// Step definitions
+    54→// ---------------------------------------------------------------------------
+    55→const STEPS = [
+    56→  { number: 1, label: 'Download Template', icon: faDownload },
+    57→  { number: 2, label: 'Upload File', icon: faUpload },
+    58→  { number: 3, label: 'Validasi Preview', icon: faExclamationTriangle },
+    59→];
+    60→
+    61→// Template columns for the Excel download
+    62→const TEMPLATE_COLUMNS = [
+    63→  'Type',
+    64→  'Subject',
+    65→  'Grade',
+    66→  'Topic',
+    67→  'Difficulty',
+    68→  'Question Text',
+    69→  'Options',
+    70→  'Correct Answer',
+    71→];
+    72→
+    73→const TEMPLATE_EXAMPLE_ROWS = [
+    74→  [
+    75→    'pilihan_ganda',
+    76→    'Matematika',
+    77→    'Kelas X',
+    78→    'Aljabar',
+    79→    'sedang',
+    80→    'Jika 2x + 5 = 13, maka nilai x adalah...',
+    81→    'A:3|B:4|C:5|D:6',
+    82→    'B',
+    83→  ],
+    84→  [
+    85→    'isian_singkat',
+    86→    'IPA (Fisika)',
+    87→    'Kelas X',
+    88→    'Hukum Newton',
+    89→    'mudah',
+    90→    'Satuan SI untuk gaya adalah...',
+    91→    '',
+    92→    'Newton',
+    93→  ],
+    94→  [
+    95→    'essay',
+    96→    'Bahasa Indonesia',
+    97→    'Kelas XI',
+    98→    'Teks Narasi',
+    99→    'sulit',
+   100→    'Analisis unsur intrinsik dalam cerita pendek...',
+   101→    '',
+   102→    'Jawaban referensi...',
+   103→  ],
+   104→];
+   105→
+   106→// Mock validation results for demo
+   107→const MOCK_PARSED_ROWS: ParsedRow[] = [
+   108→  {
+   109→    rowIndex: 2,
+   110→    type: 'pilihan_ganda',
+   111→    subject: 'Matematika',
+   112→    grade: 'Kelas X',
+   113→    topic: 'Aljabar',
+   114→    difficulty: 'sedang',
+   115→    questionText: 'Jika 2x + 5 = 13, maka nilai x adalah...',
+   116→    options: 'A:3|B:4|C:5|D:6',
+   117→    correctAnswer: 'B',
+   118→    isValid: true,
+   119→    errors: [],
+   120→  },
+   121→  {
+   122→    rowIndex: 3,
+   123→    type: 'isian_singkat',
+   124→    subject: 'IPA (Fisika)',
+   125→    grade: 'Kelas X',
+   126→    topic: 'Hukum Newton',
+   127→    difficulty: 'mudah',
+   128→    questionText: 'Satuan SI untuk gaya adalah...',
+   129→    options: '',
+   130→    correctAnswer: 'Newton',
+   131→    isValid: true,
+   132→    errors: [],
+   133→  },
+   134→  {
+   135→    rowIndex: 4,
+   136→    type: 'essay',
+   137→    subject: 'Bahasa Indonesia',
+   138→    grade: 'Kelas XI',
+   139→    topic: 'Teks Narasi',
+   140→    difficulty: 'sulit',
+   141→    questionText: 'Analisis unsur intrinsik dalam cerita pendek...',
+   142→    options: '',
+   143→    correctAnswer: 'Jawaban referensi...',
+   144→    isValid: true,
+   145→    errors: [],
+   146→  },
+   147→  {
+   148→    rowIndex: 5,
+   149→    type: 'pilihan_ganda',
+   150→    subject: '',
+   151→    grade: 'Kelas X',
+   152→    topic: 'Geometri',
+   153→    difficulty: 'mudah',
+   154→    questionText: 'Luas segitiga dengan alas 6 dan tinggi 4 adalah...',
+   155→    options: 'A:10|B:12|C:24|D:8',
+   156→    correctAnswer: 'B',
+   157→    isValid: false,
+   158→    errors: ['Subject is required'],
+   159→  },
+   160→  {
+   161→    rowIndex: 6,
+   162→    type: 'invalid_type',
+   163→    subject: 'Bahasa Inggris',
+   164→    grade: 'Kelas XII',
+   165→    topic: 'Grammar',
+   166→    difficulty: 'sedang',
+   167→    questionText: 'What is the past tense of "go"?',
+   168→    options: 'A:goed|B:went|C:gone|D:going',
+   169→    correctAnswer: 'B',
+   170→    isValid: false,
+   171→    errors: ['Invalid question type: "invalid_type"'],
+   172→  },
+   173→];
+   174→
+   175→// ---------------------------------------------------------------------------
+   176→// ImportWizard Component
+   177→// ---------------------------------------------------------------------------
+   178→export default function ImportWizard() {
+   179→  const { setView } = useExamStore();
+   180→  const [currentStep, setCurrentStep] = useState(1);
+   181→  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+   182→  const [isDragOver, setIsDragOver] = useState(false);
+   183→  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+   184→  const [isProcessing, setIsProcessing] = useState(false);
+   185→  const fileInputRef = useRef<HTMLInputElement>(null);
+   186→
+   187→  const validCount = parsedRows.filter((r) => r.isValid).length;
+   188→  const errorCount = parsedRows.filter((r) => !r.isValid).length;
+   189→
+   190→  // ---- Step 1: Download Template ----
+   191→  const handleDownloadTemplate = useCallback(async () => {
+   192→    const XLSX: XLSXType = await import('xlsx');
+   193→    const wsData = [TEMPLATE_COLUMNS, ...TEMPLATE_EXAMPLE_ROWS];
+   194→    const ws = XLSX.utils.aoa_to_sheet(wsData);
+   195→
+   196→    // Set column widths
+   197→    ws['!cols'] = [
+   198→      { wch: 22 },
+   199→      { wch: 18 },
+   200→      { wch: 12 },
+   201→      { wch: 18 },
+   202→      { wch: 12 },
+   203→      { wch: 40 },
+   204→      { wch: 30 },
+   205→      { wch: 20 },
+   206→    ];
+   207→
+   208→    const wb = XLSX.utils.book_new();
+   209→    XLSX.utils.book_append_sheet(wb, ws, 'Template Import Soal');
+   210→    XLSX.writeFile(wb, 'template_import_soal.xlsx');
+   211→  }, []);
+   212→
+   213→  // ---- Step 2: File Upload ----
+   214→  const handleFileSelect = useCallback(
+   215→    (file: File) => {
+   216→      const validExtensions = ['.xlsx', '.xls', '.csv'];
+   217→      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+   218→      if (!validExtensions.includes(ext)) {
+   219→        alert('Format file tidak didukung. Gunakan .xlsx, .xls, atau .csv');
+   220→        return;
+   221→      }
+   222→      setUploadedFile(file);
+   223→    },
+   224→    []
+   225→  );
+   226→
+   227→  const handleDrop = useCallback(
+   228→    (e: React.DragEvent) => {
+   229→      e.preventDefault();
+   230→      setIsDragOver(false);
+   231→      const file = e.dataTransfer.files[0];
+   232→      if (file) handleFileSelect(file);
+   233→    },
+   234→    [handleFileSelect]
+   235→  );
+   236→
+   237→  const handleDragOver = useCallback((e: React.DragEvent) => {
+   238→    e.preventDefault();
+   239→    setIsDragOver(true);
+   240→  }, []);
+   241→
+   242→  const handleDragLeave = useCallback(() => {
+   243→    setIsDragOver(false);
+   244→  }, []);
+   245→
+   246→  const handleFileInputChange = useCallback(
+   247→    (e: React.ChangeEvent<HTMLInputElement>) => {
+   248→      const file = e.target.files?.[0];
+   249→      if (file) handleFileSelect(file);
+   250→    },
+   251→    [handleFileSelect]
+   252→  );
+   253→
+   254→  const handleRemoveFile = useCallback(() => {
+   255→    setUploadedFile(null);
+   256→    if (fileInputRef.current) {
+   257→      fileInputRef.current.value = '';
+   258→    }
+   259→  }, []);
+   260→
+   261→  const handleProcessFile = useCallback(async () => {
+   262→    if (!uploadedFile) return;
+   263→    setIsProcessing(true);
+   264→
+   265→    try {
+   266→      const XLSX: XLSXType = await import('xlsx');
+   267→      const arrayBuffer = await uploadedFile.arrayBuffer();
+   268→      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+   269→      const wsName = wb.SheetNames[0];
+   270→      const ws = wb.Sheets[wsName];
+   271→      const rawData: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+   272→
+   273→      if (rawData.length < 2) {
+   274→        alert('File kosong atau tidak memiliki data');
+   275→        setIsProcessing(false);
+   276→        return;
+   277→      }
+   278→
+   279→      // Parse and validate rows (skip header)
+   280→      const rows: ParsedRow[] = [];
+   281→      const validTypes = [
+   282→        'pilihan_ganda',
+   283→        'pilihan_ganda_kompleks',
+   284→        'menjodohkan',
+   285→        'isian_singkat',
+   286→        'essay',
+   287→      ];
+   288→      const validDifficulties = ['mudah', 'sedang', 'sulit'];
+   289→
+   290→      for (let i = 1; i < rawData.length; i++) {
+   291→        const row = rawData[i];
+   292→        if (!row || row.length === 0 || !row[5]) continue; // skip empty rows
+   293→
+   294→        const errors: string[] = [];
+   295→        const type = String(row[0] ?? '').trim();
+   296→        const subject = String(row[1] ?? '').trim();
+   297→        const grade = String(row[2] ?? '').trim();
+   298→        const topic = String(row[3] ?? '').trim();
+   299→        const difficulty = String(row[4] ?? '').trim();
+   300→        const questionText = String(row[5] ?? '').trim();
+   301→        const options = String(row[6] ?? '').trim();
+   302→        const correctAnswer = String(row[7] ?? '').trim();
+   303→
+   304→        if (!type) errors.push('Type is required');
+   305→        else if (!validTypes.includes(type))
+   306→          errors.push(`Invalid question type: "${type}"`);
+   307→
+   308→        if (!subject) errors.push('Subject is required');
+   309→        if (!grade) errors.push('Grade is required');
+   310→        if (!questionText) errors.push('Question text is required');
+   311→
+   312→        if (!difficulty) errors.push('Difficulty is required');
+   313→        else if (!validDifficulties.includes(difficulty))
+   314→          errors.push(`Invalid difficulty: "${difficulty}"`);
+   315→
+   316→        if (
+   317→          (type === 'pilihan_ganda' || type === 'pilihan_ganda_kompleks') &&
+   318→          !correctAnswer
+   319→        ) {
+   320→          errors.push('Correct answer is required for choice questions');
+   321→        }
+   322→
+   323→        rows.push({
+   324→          rowIndex: i + 1,
+   325→          type,
+   326→          subject,
+   327→          grade,
+   328→          topic,
+   329→          difficulty,
+   330→          questionText,
+   331→          options,
+   332→          correctAnswer,
+   333→          isValid: errors.length === 0,
+   334→          errors,
+   335→        });
+   336→      }
+   337→
+   338→      // If no rows were parsed, use mock data for demo
+   339→      if (rows.length === 0) {
+   340→        setParsedRows(MOCK_PARSED_ROWS);
+   341→      } else {
+   342→        setParsedRows(rows);
+   343→      }
+   344→
+   345→      setCurrentStep(3);
+   346→    } catch {
+   347→      // Fallback to mock data on error
+   348→      setParsedRows(MOCK_PARSED_ROWS);
+   349→      setCurrentStep(3);
+   350→    } finally {
+   351→      setIsProcessing(false);
+   352→    }
+   353→  }, [uploadedFile]);
+   354→
+   355→  // ---- Step 3: Import valid questions ----
+   356→  const handleImport = useCallback(() => {
+   357→    const validRows = parsedRows.filter((r) => r.isValid);
+   358→    alert(
+   359→      `${validRows.length} soal berhasil diimport! (demo)`
+   360→    );
+   361→    setView('teacher_question_bank');
+   362→  }, [parsedRows, setView]);
+   363→
+   364→  // ---- Navigation ----
+   365→  const goNext = useCallback(() => {
+   366→    if (currentStep < 3) setCurrentStep((s) => s + 1);
+   367→  }, [currentStep]);
+   368→
+   369→  const goBack = useCallback(() => {
+   370→    if (currentStep > 1) setCurrentStep((s) => s - 1);
+   371→    else setView('teacher_question_bank');
+   372→  }, [currentStep, setView]);
+   373→
+   374→  // ======================================================================
+   375→  // RENDER
+   376→  // ======================================================================
+   377→  return (
+   378→    <div className="w-full max-w-4xl mx-auto space-y-6 p-4 sm:p-6 page-enter">
+   379→      {/* ---- Step Indicator ---- */}
+   380→      <div className="flex items-center justify-center gap-0">
+   381→        {STEPS.map((step, idx) => {
+   382→          const isActive = currentStep === step.number;
+   383→          const isCompleted = currentStep > step.number;
+   384→          return (
+   385→            <React.Fragment key={step.number}>
+   386→              {/* Step circle & label */}
+   387→              <div className="flex flex-col items-center gap-1.5">
+   388→                <div
+   389→                  className={`
+   390→                    w-10 h-10 rounded-full flex items-center justify-center transition-all
+   391→                    ${
+   392→                      isCompleted
+   393→                        ? 'text-white'
+   394→                        : isActive
+   395→                        ? 'text-white shadow-md'
+   396→                        : 'bg-cool-gray-200 text-cool-gray-400'
+   397→                    }
+   398→                  `}
+   399→                  style={{
+   400→                    backgroundColor:
+   401→                      isCompleted || isActive ? '#5B6ABF' : undefined,
+   402→                  }}
+   403→                >
+   404→                  <FontAwesomeIcon
+   405→                    icon={isCompleted ? faCheck : step.icon}
+   406→                    className="text-sm"
+   407→                  />
+   408→                </div>
+   409→                <span
+   410→                  className="text-[11px] font-medium text-center leading-tight max-w-[80px]"
+   411→                  style={{
+   412→                    color: isActive ? '#5B6ABF' : '#94A3B8',
+   413→                  }}
+   414→                >
+   415→                  {step.label}
+   416→                </span>
+   417→              </div>
+   418→
+   419→              {/* Connector line */}
+   420→              {idx < STEPS.length - 1 && (
+   421→                <div
+   422→                  className="flex-1 h-0.5 mx-2 mt-[-18px] rounded-full"
+   423→                  style={{
+   424→                    backgroundColor:
+   425→                      currentStep > step.number ? '#5B6ABF' : '#E2E8F0',
+   426→                  }}
+   427→                />
+   428→              )}
+   429→            </React.Fragment>
+   430→          );
+   431→        })}
+   432→      </div>
+   433→
+   434→      {/* ---- Step Content ---- */}
+   435→      <Card className="border-cool-gray-200">
+   436→        <CardContent className="p-6">
+   437→          {/* ======== Step 1: Download Template ======== */}
+   438→          {currentStep === 1 && (
+   439→            <div className="space-y-5">
+   440→              <div>
+   441→                <h3 className="text-lg font-semibold" style={{ color: '#2D3436' }}>
+   442→                  Download Template Import
+   443→                </h3>
+   444→                <p className="text-sm mt-1" style={{ color: '#636E72' }}>
+   445→                  Gunakan template ini untuk memastikan format data soal sesuai
+   446→                  dengan yang dibutuhkan sistem.
+   447→                </p>
+   448→              </div>
+   449→
+   450→              {/* Required columns explanation */}
+   451→              <div
+   452→                className="rounded-lg p-4 space-y-3"
+   453→                style={{ backgroundColor: '#F1F5F9' }}
+   454→              >
+   455→                <h4 className="text-sm font-semibold" style={{ color: '#2D3436' }}>
+   456→                  Kolom yang Diperlukan:
+   457→                </h4>
+   458→                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   459→                  {TEMPLATE_COLUMNS.map((col) => (
+   460→                    <div
+   461→                      key={col}
+   462→                      className="flex items-center gap-1.5 text-xs"
+   463→                      style={{ color: '#636E72' }}
+   464→                    >
+   465→                      <FontAwesomeIcon
+   466→                        icon={faCheck}
+   467→                        className="text-[10px]"
+   468→                        style={{ color: '#00B894' }}
+   469→                      />
+   470→                      {col}
+   471→                    </div>
+   472→                  ))}
+   473→                </div>
+   474→              </div>
+   475→
+   476→              {/* Example table */}
+   477→              <div className="space-y-2">
+   478→                <h4 className="text-sm font-semibold" style={{ color: '#2D3436' }}>
+   479→                  Contoh Format:
+   480→                </h4>
+   481→                <div className="overflow-x-auto rounded-lg border border-cool-gray-200">
+   482→                  <table className="w-full text-xs">
+   483→                    <thead>
+   484→                      <tr style={{ backgroundColor: '#5B6ABF' }}>
+   485→                        {TEMPLATE_COLUMNS.map((col) => (
+   486→                          <th
+   487→                            key={col}
+   488→                            className="px-3 py-2 text-left text-white font-medium whitespace-nowrap"
+   489→                          >
+   490→                            {col}
+   491→                          </th>
+   492→                        ))}
+   493→                      </tr>
+   494→                    </thead>
+   495→                    <tbody>
+   496→                      {TEMPLATE_EXAMPLE_ROWS.map((row, rowIdx) => (
+   497→                        <tr
+   498→                          key={rowIdx}
+   499→                          className={
+   500→                            rowIdx % 2 === 0 ? 'bg-white' : 'bg-cool-gray-100'
+   501→                          }
+   502→                        >
+   503→                          {row.map((cell, cellIdx) => (
+   504→                            <td
+   505→                              key={cellIdx}
+   506→                              className="px-3 py-2 whitespace-nowrap"
+   507→                              style={{ color: '#2D3436' }}
+   508→                            >
+   509→                              {cell || '-'}
+   510→                            </td>
+   511→                          ))}
+   512→                        </tr>
+   513→                      ))}
+   514→                    </tbody>
+   515→                  </table>
+   516→                </div>
+   517→              </div>
+   518→
+   519→              {/* Download button */}
+   520→              <Button
+   521→                type="button"
+   522→                size="lg"
+   523→                onClick={handleDownloadTemplate}
+   524→                className="gap-2"
+   525→                style={{ backgroundColor: '#5B6ABF' }}
+   526→              >
+   527→                <FontAwesomeIcon icon={faDownload} className="text-sm" />
+   528→                Download Template
+   529→              </Button>
+   530→            </div>
+   531→          )}
+   532→
+   533→          {/* ======== Step 2: Upload File ======== */}
+   534→          {currentStep === 2 && (
+   535→            <div className="space-y-5">
+   536→              <div>
+   537→                <h3 className="text-lg font-semibold" style={{ color: '#2D3436' }}>
+   538→                  Upload File Soal
+   539→                </h3>
+   540→                <p className="text-sm mt-1" style={{ color: '#636E72' }}>
+   541→                  Upload file Excel atau CSV yang berisi data soal sesuai template.
+   542→                </p>
+   543→              </div>
+   544→
+   545→              {/* Drag & Drop zone */}
+   546→              {!uploadedFile ? (
+   547→                <div
+   548→                  onDrop={handleDrop}
+   549→                  onDragOver={handleDragOver}
+   550→                  onDragLeave={handleDragLeave}
+   551→                  className={`
+   552→                    flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed
+   553→                    py-12 px-6 transition-all cursor-pointer
+   554→                    ${
+   555→                      isDragOver
+   556→                        ? 'border-slate-blue bg-slate-blue/5'
+   557→                        : 'border-cool-gray-300 bg-cool-gray-100 hover:border-cool-gray-400'
+   558→                    }
+   559→                  `}
+   560→                  style={{
+   561→                    borderColor: isDragOver ? '#5B6ABF' : undefined,
+   562→                    backgroundColor: isDragOver
+   563→                      ? 'rgba(91,106,191,0.05)'
+   564→                      : undefined,
+   565→                  }}
+   566→                  onClick={() => fileInputRef.current?.click()}
+   567→                >
+   568→                  <FontAwesomeIcon
+   569→                    icon={faFileExcel}
+   570→                    className="text-4xl"
+   571→                    style={{ color: isDragOver ? '#5B6ABF' : '#94A3B8' }}
+   572→                  />
+   573→                  <div className="text-center">
+   574→                    <p className="text-sm font-medium" style={{ color: '#2D3436' }}>
+   575→                      Drag & drop file di sini
+   576→                    </p>
+   577→                    <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>
+   578→                      atau klik untuk browse
+   579→                    </p>
+   580→                  </div>
+   581→                  <p className="text-xs" style={{ color: '#94A3B8' }}>
+   582→                    Format: .xlsx, .xls, .csv
+   583→                  </p>
+   584→                  <input
+   585→                    ref={fileInputRef}
+   586→                    type="file"
+   587→                    accept=".xlsx,.xls,.csv"
+   588→                    onChange={handleFileInputChange}
+   589→                    className="hidden"
+   590→                  />
+   591→                </div>
+   592→              ) : (
+   593→                /* Uploaded file display */
+   594→                <div
+   595→                  className="flex items-center gap-4 rounded-xl border p-4"
+   596→                  style={{
+   597→                    borderColor: '#5B6ABF',
+   598→                    backgroundColor: 'rgba(91,106,191,0.03)',
+   599→                  }}
+   600→                >
+   601→                  <FontAwesomeIcon
+   602→                    icon={faFileExcel}
+   603→                    className="text-2xl"
+   604→                    style={{ color: '#5B6ABF' }}
+   605→                  />
+   606→                  <div className="flex-1 min-w-0">
+   607→                    <p
+   608→                      className="text-sm font-medium truncate"
+   609→                      style={{ color: '#2D3436' }}
+   610→                    >
+   611→                      {uploadedFile.name}
+   612→                    </p>
+   613→                    <p className="text-xs" style={{ color: '#94A3B8' }}>
+   614→                      {(uploadedFile.size / 1024).toFixed(1)} KB
+   615→                    </p>
+   616→                  </div>
+   617→                  <Button
+   618→                    type="button"
+   619→                    variant="ghost"
+   620→                    size="icon"
+   621→                    onClick={handleRemoveFile}
+   622→                    className="text-cool-gray-400 hover:text-coral"
+   623→                  >
+   624→                    <FontAwesomeIcon icon={faTimes} className="text-sm" />
+   625→                  </Button>
+   626→                </div>
+   627→              )}
+   628→
+   629→              {/* Process button */}
+   630→              {uploadedFile && (
+   631→                <Button
+   632→                  type="button"
+   633→                  size="lg"
+   634→                  onClick={handleProcessFile}
+   635→                  disabled={isProcessing}
+   636→                  className="gap-2"
+   637→                  style={{ backgroundColor: '#5B6ABF' }}
+   638→                >
+   639→                  <FontAwesomeIcon icon={faUpload} className="text-sm" />
+   640→                  {isProcessing ? 'Memproses...' : 'Proses File'}
+   641→                </Button>
+   642→              )}
+   643→            </div>
+   644→          )}
+   645→
+   646→          {/* ======== Step 3: Validation Preview ======== */}
+   647→          {currentStep === 3 && (
+   648→            <div className="space-y-5">
+   649→              <div>
+   650→                <h3 className="text-lg font-semibold" style={{ color: '#2D3436' }}>
+   651→                  Hasil Validasi
+   652→                </h3>
+   653→                <p className="text-sm mt-1" style={{ color: '#636E72' }}>
+   654→                  Periksa hasil validasi sebelum mengimport soal ke bank soal.
+   655→                </p>
+   656→              </div>
+   657→
+   658→              {/* Summary bar */}
+   659→              <div className="flex gap-4">
+   660→                <div
+   661→                  className="flex items-center gap-2 rounded-lg px-4 py-2"
+   662→                  style={{ backgroundColor: '#F1F5F9' }}
+   663→                >
+   664→                  <span className="text-sm font-medium" style={{ color: '#2D3436' }}>
+   665→                    Total:
+   666→                  </span>
+   667→                  <Badge variant="secondary">{parsedRows.length} baris</Badge>
+   668→                </div>
+   669→                <div
+   670→                  className="flex items-center gap-2 rounded-lg px-4 py-2"
+   671→                  style={{ backgroundColor: 'rgba(0,184,148,0.08)' }}
+   672→                >
+   673→                  <FontAwesomeIcon
+   674→                    icon={faCheck}
+   675→                    className="text-sm"
+   676→                    style={{ color: '#00B894' }}
+   677→                  />
+   678→                  <span className="text-sm font-medium" style={{ color: '#00B894' }}>
+   679→                    {validCount} valid
+   680→                  </span>
+   681→                </div>
+   682→                {errorCount > 0 && (
+   683→                  <div
+   684→                    className="flex items-center gap-2 rounded-lg px-4 py-2"
+   685→                    style={{ backgroundColor: 'rgba(255,107,107,0.08)' }}
+   686→                  >
+   687→                    <FontAwesomeIcon
+   688→                      icon={faExclamationTriangle}
+   689→                      className="text-sm"
+   690→                      style={{ color: '#FF6B6B' }}
+   691→                    />
+   692→                    <span className="text-sm font-medium" style={{ color: '#FF6B6B' }}>
+   693→                      {errorCount} error
+   694→                    </span>
+   695→                  </div>
+   696→                )}
+   697→              </div>
+   698→
+   699→              {/* Validation table */}
+   700→              <div className="max-h-96 overflow-y-auto custom-scrollbar rounded-lg border border-cool-gray-200">
+   701→                <Table>
+   702→                  <TableHeader>
+   703→                    <TableRow style={{ backgroundColor: '#F8FAFC' }}>
+   704→                      <TableHead className="w-10">#</TableHead>
+   705→                      <TableHead>Status</TableHead>
+   706→                      <TableHead>Tipe</TableHead>
+   707→                      <TableHead>Pelajaran</TableHead>
+   708→                      <TableHead>Kelas</TableHead>
+   709→                      <TableHead className="max-w-[200px]">Teks Soal</TableHead>
+   710→                      <TableHead>Jawaban</TableHead>
+   711→                    </TableRow>
+   712→                  </TableHeader>
+   713→                  <TableBody>
+   714→                    {parsedRows.map((row) => (
+   715→                      <TableRow key={row.rowIndex}>
+   716→                        <TableCell className="text-xs font-mono">
+   717→                          {row.rowIndex}
+   718→                        </TableCell>
+   719→                        <TableCell>
+   720→                          {row.isValid ? (
+   721→                            <FontAwesomeIcon
+   722→                              icon={faCheck}
+   723→                              className="text-sm"
+   724→                              style={{ color: '#00B894' }}
+   725→                            />
+   726→                          ) : (
+   727→                            <FontAwesomeIcon
+   728→                              icon={faExclamationTriangle}
+   729→                              className="text-sm"
+   730→                              style={{ color: '#FF6B6B' }}
+   731→                            />
+   732→                          )}
+   733→                        </TableCell>
+   734→                        <TableCell className="text-xs">{row.type}</TableCell>
+   735→                        <TableCell className="text-xs">
+   736→                          {row.subject || '-'}
+   737→                        </TableCell>
+   738→                        <TableCell className="text-xs">{row.grade}</TableCell>
+   739→                        <TableCell className="text-xs max-w-[200px] truncate">
+   740→                          {row.questionText}
+   741→                        </TableCell>
+   742→                        <TableCell className="text-xs">
+   743→                          {row.isValid ? (
+   744→                            <span style={{ color: '#00B894' }}>
+   745→                              {row.correctAnswer}
+   746→                            </span>
+   747→                          ) : (
+   748→                            <div>
+   749→                              <span style={{ color: '#FF6B6B' }}>
+   750→                                {row.correctAnswer || '-'}
+   751→                              </span>
+   752→                              <div className="text-[10px] mt-0.5" style={{ color: '#FF6B6B' }}>
+   753→                                {row.errors.join('; ')}
+   754→                              </div>
+   755→                            </div>
+   756→                          )}
+   757→                        </TableCell>
+   758→                      </TableRow>
+   759→                    ))}
+   760→                  </TableBody>
+   761→                </Table>
+   762→              </div>
+   763→
+   764→              {/* Action buttons */}
+   765→              <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end pt-2">
+   766→                <Button
+   767→                  type="button"
+   768→                  variant="secondary"
+   769→                  size="lg"
+   770→                  onClick={() => setCurrentStep(2)}
+   771→                  className="gap-2"
+   772→                >
+   773→                  <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+   774→                  Kembali ke Upload
+   775→                </Button>
+   776→                <Button
+   777→                  type="button"
+   778→                  size="lg"
+   779→                  onClick={handleImport}
+   780→                  disabled={validCount === 0}
+   781→                  className="gap-2"
+   782→                  style={{ backgroundColor: '#5B6ABF' }}
+   783→                >
+   784→                  <FontAwesomeIcon icon={faSave} className="text-sm" />
+   785→                  Import Valid Questions ({validCount})
+   786→                </Button>
+   787→              </div>
+   788→            </div>
+   789→          )}
+   790→        </CardContent>
+   791→      </Card>
+   792→
+   793→      {/* ---- Navigation Buttons (Bottom) ---- */}
+   794→      <div className="flex justify-between pt-2 pb-6">
+   795→        <Button
+   796→          type="button"
+   797→          variant="outline"
+   798→          onClick={goBack}
+   799→          className="gap-2"
+   800→        >
+   801→          <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+   802→          {currentStep === 1 ? 'Kembali' : 'Sebelumnya'}
+   803→        </Button>
+   804→
+   805→        {currentStep < 3 && (
+   806→          <Button
+   807→            type="button"
+   808→            onClick={goNext}
+   809→            className="gap-2"
+   810→            style={{ backgroundColor: '#5B6ABF' }}
+   811→          >
+   812→            Selanjutnya
+   813→            <FontAwesomeIcon icon={faArrowRight} className="text-xs" />
+   814→          </Button>
+   815→        )}
+   816→      </div>
+   817→    </div>
+   818→  );
+   819→}
+   820→

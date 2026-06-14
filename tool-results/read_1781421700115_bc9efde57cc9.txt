@@ -1,0 +1,798 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import React, { useState, useCallback, useMemo } from 'react';
+     4→     4→import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+     5→     5→import {
+     6→     6→  faCircleDot,
+     7→     7→  faSquareCheck,
+     8→     8→  faRightLeft,
+     9→     9→  faFont,
+    10→    10→  faAlignLeft,
+    11→    11→  faPlus,
+    12→    12→  faTrash,
+    13→    13→} from '@fortawesome/free-solid-svg-icons';
+    14→    14→import { Card, CardContent } from '@/components/ui/card';
+    15→    15→import { Button } from '@/components/ui/button';
+    16→    16→import { Input } from '@/components/ui/input';
+    17→    17→import { Label } from '@/components/ui/label';
+    18→    18→import { Textarea } from '@/components/ui/textarea';
+    19→    19→import {
+    20→    20→  Select,
+    21→    21→  SelectContent,
+    22→    22→  SelectItem,
+    23→    23→  SelectTrigger,
+    24→    24→  SelectValue,
+    25→    25→} from '@/components/ui/select';
+    26→    26→import { Checkbox } from '@/components/ui/checkbox';
+    27→    27→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+    28→    28→import { useExamStore } from '@/lib/store';
+    29→    29→import {
+    30→    30→  QuestionType,
+    31→    31→  Difficulty,
+    32→    32→  QuestionOption,
+    33→    33→  MatchingPair,
+    34→    34→  ShortAnswerKeyword,
+    35→    35→  QUESTION_TYPE_LABELS,
+    36→    36→  DIFFICULTY_LABELS,
+    37→    37→  DIFFICULTY_COLORS,
+    38→    38→} from '@/lib/types';
+    39→    39→import { SUBJECTS, CLASS_GRADES, TOPICS } from '@/lib/mock-data';
+    40→    40→
+    41→    41→// ---------------------------------------------------------------------------
+    42→    42→// Question type card definitions
+    43→    43→// ---------------------------------------------------------------------------
+    44→    44→const QUESTION_TYPE_CARDS: {
+    45→    45→  type: QuestionType;
+    46→    46→  icon: typeof faCircleDot;
+    47→    47→  label: string;
+    48→    48→  subtitle: string;
+    49→    49→}[] = [
+    50→    50→  {
+    51→    51→    type: 'pilihan_ganda',
+    52→    52→    icon: faCircleDot,
+    53→    53→    label: 'Pilihan Ganda',
+    54→    54→    subtitle: 'Single Choice',
+    55→    55→  },
+    56→    56→  {
+    57→    57→    type: 'pilihan_ganda_kompleks',
+    58→    58→    icon: faSquareCheck,
+    59→    59→    label: 'Pilihan Ganda Kompleks',
+    60→    60→    subtitle: 'Multi-Select',
+    61→    61→  },
+    62→    62→  {
+    63→    63→    type: 'menjodohkan',
+    64→    64→    icon: faRightLeft,
+    65→    65→    label: 'Menjodohkan',
+    66→    66→    subtitle: 'Matching Pairs',
+    67→    67→  },
+    68→    68→  {
+    69→    69→    type: 'isian_singkat',
+    70→    70→    icon: faFont,
+    71→    71→    label: 'Isian Singkat',
+    72→    72→    subtitle: 'Short Answer',
+    73→    73→  },
+    74→    74→  {
+    75→    75→    type: 'essay',
+    76→    76→    icon: faAlignLeft,
+    77→    77→    label: 'Essay / Uraian',
+    78→    78→    subtitle: 'Essay',
+    79→    79→  },
+    80→    80→];
+    81→    81→
+    82→    82→// ---------------------------------------------------------------------------
+    83→    83→// Helpers
+    84→    84→// ---------------------------------------------------------------------------
+    85→    85→let _uid = 0;
+    86→    86→const uid = () => `_${++_uid}_${Date.now()}`;
+    87→    87→
+    88→    88→const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    89→    89→
+    90→    90→const DIFFICULTY_LIST: Difficulty[] = ['mudah', 'sedang', 'sulit'];
+    91→    91→
+    92→    92→const DIFFICULTY_BTN_COLORS: Record<Difficulty, string> = {
+    93→    93→  mudah:
+    94→    94→    'data-[state=on]:bg-emerald-100 data-[state=on]:text-emerald-700 data-[state=on]:border-emerald-300',
+    95→    95→  sedang:
+    96→    96→    'data-[state=on]:bg-amber-100 data-[state=on]:text-amber-700 data-[state=on]:border-amber-300',
+    97→    97→  sulit:
+    98→    98→    'data-[state=on]:bg-red-100 data-[state=on]:text-red-700 data-[state=on]:border-red-300',
+    99→    99→};
+   100→   100→
+   101→   101→// ---------------------------------------------------------------------------
+   102→   102→// QuestionEditor Component
+   103→   103→// ---------------------------------------------------------------------------
+   104→   104→export default function QuestionEditor() {
+   105→   105→  const { editingQuestionType, setEditingQuestionType, setView } =
+   106→   106→    useExamStore();
+   107→   107→
+   108→   108→  // ---- Form state ----
+   109→   109→  const [questionType, setQuestionType] = useState<QuestionType>(
+   110→   110→    editingQuestionType ?? 'pilihan_ganda'
+   111→   111→  );
+   112→   112→  const [subjectId, setSubjectId] = useState('');
+   113→   113→  const [classGradeId, setClassGradeId] = useState('');
+   114→   114→  const [topicId, setTopicId] = useState('');
+   115→   115→  const [difficulty, setDifficulty] = useState<Difficulty>('sedang');
+   116→   116→  const [points, setPoints] = useState<number>(10);
+   117→   117→  const [questionText, setQuestionText] = useState('');
+   118→   118→
+   119→   119→  // Type-specific state
+   120→   120→  const [options, setOptions] = useState<QuestionOption[]>([
+   121→   121→    { id: uid(), label: 'A', text: '', isCorrect: false },
+   122→   122→    { id: uid(), label: 'B', text: '', isCorrect: false },
+   123→   123→    { id: uid(), label: 'C', text: '', isCorrect: false },
+   124→   124→    { id: uid(), label: 'D', text: '', isCorrect: false },
+   125→   125→  ]);
+   126→   126→
+   127→   127→  const [matchingPairs, setMatchingPairs] = useState<MatchingPair[]>([
+   128→   128→    { id: uid(), premise: '', response: '' },
+   129→   129→    { id: uid(), premise: '', response: '' },
+   130→   130→    { id: uid(), premise: '', response: '' },
+   131→   131→  ]);
+   132→   132→
+   133→   133→  const [keywords, setKeywords] = useState<ShortAnswerKeyword[]>([
+   134→   134→    { id: uid(), keyword: '' },
+   135→   135→  ]);
+   136→   136→
+   137→   137→  const [essayAnswer, setEssayAnswer] = useState('');
+   138→   138→
+   139→   139→  // ---- Derived data ----
+   140→   140→  const filteredTopics = useMemo(
+   141→   141→    () => (subjectId ? TOPICS.filter((t) => t.subjectId === subjectId) : []),
+   142→   142→    [subjectId]
+   143→   143→  );
+   144→   144→
+   145→   145→  // ---- Handlers ----
+   146→   146→  const handleTypeChange = useCallback(
+   147→   147→    (type: QuestionType) => {
+   148→   148→      setQuestionType(type);
+   149→   149→      setEditingQuestionType(type);
+   150→   150→      // Reset type-specific state when switching types
+   151→   151→      if (type === 'pilihan_ganda' || type === 'pilihan_ganda_kompleks') {
+   152→   152→        setOptions([
+   153→   153→          { id: uid(), label: 'A', text: '', isCorrect: false },
+   154→   154→          { id: uid(), label: 'B', text: '', isCorrect: false },
+   155→   155→          { id: uid(), label: 'C', text: '', isCorrect: false },
+   156→   156→          { id: uid(), label: 'D', text: '', isCorrect: false },
+   157→   157→        ]);
+   158→   158→      } else if (type === 'menjodohkan') {
+   159→   159→        setMatchingPairs([
+   160→   160→          { id: uid(), premise: '', response: '' },
+   161→   161→          { id: uid(), premise: '', response: '' },
+   162→   162→          { id: uid(), premise: '', response: '' },
+   163→   163→        ]);
+   164→   164→      } else if (type === 'isian_singkat') {
+   165→   165→        setKeywords([{ id: uid(), keyword: '' }]);
+   166→   166→      } else if (type === 'essay') {
+   167→   167→        setEssayAnswer('');
+   168→   168→      }
+   169→   169→    },
+   170→   170→    [setEditingQuestionType]
+   171→   171→  );
+   172→   172→
+   173→   173→  const handleSubjectChange = useCallback(
+   174→   174→    (val: string) => {
+   175→   175→      setSubjectId(val);
+   176→   176→      setTopicId(''); // reset topic when subject changes
+   177→   177→    },
+   178→   178→    []
+   179→   179→  );
+   180→   180→
+   181→   181→  // Option handlers
+   182→   182→  const addOption = useCallback(() => {
+   183→   183→    const nextLabel = OPTION_LABELS[options.length] ?? String(options.length + 1);
+   184→   184→    setOptions((prev) => [
+   185→   185→      ...prev,
+   186→   186→      { id: uid(), label: nextLabel, text: '', isCorrect: false },
+   187→   187→    ]);
+   188→   188→  }, [options.length]);
+   189→   189→
+   190→   190→  const removeOption = useCallback(
+   191→   191→    (id: string) => {
+   192→   192→      if (options.length <= 2) return; // minimum 2 options
+   193→   193→      setOptions((prev) => {
+   194→   194→        const filtered = prev.filter((o) => o.id !== id);
+   195→   195→        // Re-label
+   196→   196→        return filtered.map((o, i) => ({
+   197→   197→          ...o,
+   198→   198→          label: OPTION_LABELS[i] ?? String(i + 1),
+   199→   199→        }));
+   200→   200→      });
+   201→   201→    },
+   202→   202→    [options.length]
+   203→   203→  );
+   204→   204→
+   205→   205→  const updateOptionText = useCallback(
+   206→   206→    (id: string, text: string) => {
+   207→   207→      setOptions((prev) =>
+   208→   208→        prev.map((o) => (o.id === id ? { ...o, text } : o))
+   209→   209→      );
+   210→   210→    },
+   211→   211→    []
+   212→   212→  );
+   213→   213→
+   214→   214→  // For single choice: only one correct
+   215→   215→  const setSingleCorrect = useCallback((id: string) => {
+   216→   216→    setOptions((prev) =>
+   217→   217→      prev.map((o) => ({ ...o, isCorrect: o.id === id }))
+   218→   218→    );
+   219→   219→  }, []);
+   220→   220→
+   221→   221→  // For multi-select: toggle correct
+   222→   222→  const toggleMultiCorrect = useCallback((id: string) => {
+   223→   223→    setOptions((prev) =>
+   224→   224→      prev.map((o) =>
+   225→   225→        o.id === id ? { ...o, isCorrect: !o.isCorrect } : o
+   226→   226→      )
+   227→   227→    );
+   228→   228→  }, []);
+   229→   229→
+   230→   230→  // Matching pair handlers
+   231→   231→  const addPair = useCallback(() => {
+   232→   232→    setMatchingPairs((prev) => [
+   233→   233→      ...prev,
+   234→   234→      { id: uid(), premise: '', response: '' },
+   235→   235→    ]);
+   236→   236→  }, []);
+   237→   237→
+   238→   238→  const removePair = useCallback(
+   239→   239→    (id: string) => {
+   240→   240→      if (matchingPairs.length <= 2) return;
+   241→   241→      setMatchingPairs((prev) => prev.filter((p) => p.id !== id));
+   242→   242→    },
+   243→   243→    [matchingPairs.length]
+   244→   244→  );
+   245→   245→
+   246→   246→  const updatePair = useCallback(
+   247→   247→    (id: string, field: 'premise' | 'response', value: string) => {
+   248→   248→      setMatchingPairs((prev) =>
+   249→   249→        prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+   250→   250→      );
+   251→   251→    },
+   252→   252→    []
+   253→   253→  );
+   254→   254→
+   255→   255→  // Keyword handlers
+   256→   256→  const addKeyword = useCallback(() => {
+   257→   257→    setKeywords((prev) => [...prev, { id: uid(), keyword: '' }]);
+   258→   258→  }, []);
+   259→   259→
+   260→   260→  const removeKeyword = useCallback(
+   261→   261→    (id: string) => {
+   262→   262→      if (keywords.length <= 1) return;
+   263→   263→      setKeywords((prev) => prev.filter((k) => k.id !== id));
+   264→   264→    },
+   265→   265→    [keywords.length]
+   266→   266→  );
+   267→   267→
+   268→   268→  const updateKeyword = useCallback((id: string, keyword: string) => {
+   269→   269→    setKeywords((prev) =>
+   270→   270→      prev.map((k) => (k.id === id ? { ...k, keyword } : k))
+   271→   271→    );
+   272→   272→  }, []);
+   273→   273→
+   274→   274→  // Save handler
+   275→   275→  const handleSave = useCallback(() => {
+   276→   276→    // In a real app, this would call an API to save the question
+   277→   277→    const questionData = {
+   278→   278→      type: questionType,
+   279→   279→      subjectId,
+   280→   280→      classGradeId,
+   281→   281→      topicId,
+   282→   282→      difficulty,
+   283→   283→      points,
+   284→   284→      text: questionText,
+   285→   285→      options:
+   286→   286→        questionType === 'pilihan_ganda' || questionType === 'pilihan_ganda_kompleks'
+   287→   287→          ? options
+   288→   288→          : undefined,
+   289→   289→      matchingPairs: questionType === 'menjodohkan' ? matchingPairs : undefined,
+   290→   290→      shortAnswerKeywords:
+   291→   291→        questionType === 'isian_singkat' ? keywords : undefined,
+   292→   292→      essayReferenceAnswer: questionType === 'essay' ? essayAnswer : undefined,
+   293→   293→    };
+   294→   294→    console.log('Saving question:', questionData);
+   295→   295→    alert('Soal berhasil disimpan! (demo)');
+   296→   296→  }, [
+   297→   297→    questionType,
+   298→   298→    subjectId,
+   299→   299→    classGradeId,
+   300→   300→    topicId,
+   301→   301→    difficulty,
+   302→   302→    points,
+   303→   303→    questionText,
+   304→   304→    options,
+   305→   305→    matchingPairs,
+   306→   306→    keywords,
+   307→   307→    essayAnswer,
+   308→   308→  ]);
+   309→   309→
+   310→   310→  const handleCancel = useCallback(() => {
+   311→   311→    setView('teacher_question_bank');
+   312→   312→  }, [setView]);
+   313→   313→
+   314→   314→  // ======================================================================
+   315→   315→  // RENDER
+   316→   316→  // ======================================================================
+   317→   317→  return (
+   318→   318→    <div className="w-full max-w-4xl mx-auto space-y-8 p-4 sm:p-6 page-enter">
+   319→   319→      {/* ---- Section 1: Type Selector ---- */}
+   320→   320→      <section>
+   321→   321→        <h2 className="text-lg font-semibold text-charcoal mb-4">
+   322→   322→          Pilih Tipe Soal
+   323→   323→        </h2>
+   324→   324→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+   325→   325→          {QUESTION_TYPE_CARDS.map((card) => {
+   326→   326→            const isSelected = questionType === card.type;
+   327→   327→            return (
+   328→   328→              <button
+   329→   329→                key={card.type}
+   330→   330→                type="button"
+   331→   331→                onClick={() => handleTypeChange(card.type)}
+   332→   332→                className={`
+   333→   333→                  flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all
+   334→   334→                  cursor-pointer text-center min-h-[100px] justify-center
+   335→   335→                  ${
+   336→   336→                    isSelected
+   337→   337→                      ? 'border-slate-blue bg-slate-blue/5 shadow-sm'
+   338→   338→                      : 'border-cool-gray-200 bg-white hover:border-cool-gray-300 hover:shadow-sm'
+   339→   339→                  }
+   340→   340→                `}
+   341→   341→                style={{
+   342→   342→                  borderColor: isSelected ? '#5B6ABF' : undefined,
+   343→   343→                  backgroundColor: isSelected ? 'rgba(91,106,191,0.05)' : undefined,
+   344→   344→                }}
+   345→   345→              >
+   346→   346→                <FontAwesomeIcon
+   347→   347→                  icon={card.icon}
+   348→   348→                  className="text-2xl"
+   349→   349→                  style={{ color: isSelected ? '#5B6ABF' : '#94A3B8' }}
+   350→   350→                />
+   351→   351→                <span
+   352→   352→                  className="text-xs font-semibold leading-tight"
+   353→   353→                  style={{ color: isSelected ? '#5B6ABF' : '#636E72' }}
+   354→   354→                >
+   355→   355→                  {card.label}
+   356→   356→                </span>
+   357→   357→                <span
+   358→   358→                  className="text-[10px] leading-tight"
+   359→   359→                  style={{ color: '#94A3B8' }}
+   360→   360→                >
+   361→   361→                  {card.subtitle}
+   362→   362→                </span>
+   363→   363→              </button>
+   364→   364→            );
+   365→   365→          })}
+   366→   366→        </div>
+   367→   367→      </section>
+   368→   368→
+   369→   369→      {/* ---- Section 2: Common Fields ---- */}
+   370→   370→      <section className="rounded-xl border border-cool-gray-200 bg-white p-6 space-y-5">
+   371→   371→        <h2 className="text-lg font-semibold" style={{ color: '#2D3436' }}>
+   372→   372→          Informasi Umum
+   373→   373→        </h2>
+   374→   374→
+   375→   375→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   376→   376→          {/* Subject */}
+   377→   377→          <div className="space-y-1.5">
+   378→   378→            <Label>Mata Pelajaran</Label>
+   379→   379→            <Select value={subjectId} onValueChange={handleSubjectChange}>
+   380→   380→              <SelectTrigger className="w-full">
+   381→   381→                <SelectValue placeholder="Pilih Mata Pelajaran" />
+   382→   382→              </SelectTrigger>
+   383→   383→              <SelectContent>
+   384→   384→                {SUBJECTS.map((s) => (
+   385→   385→                  <SelectItem key={s.id} value={s.id}>
+   386→   386→                    {s.name}
+   387→   387→                  </SelectItem>
+   388→   388→                ))}
+   389→   389→              </SelectContent>
+   390→   390→            </Select>
+   391→   391→          </div>
+   392→   392→
+   393→   393→          {/* Class/Grade */}
+   394→   394→          <div className="space-y-1.5">
+   395→   395→            <Label>Kelas</Label>
+   396→   396→            <Select value={classGradeId} onValueChange={setClassGradeId}>
+   397→   397→              <SelectTrigger className="w-full">
+   398→   398→                <SelectValue placeholder="Pilih Kelas" />
+   399→   399→              </SelectTrigger>
+   400→   400→              <SelectContent>
+   401→   401→                {CLASS_GRADES.map((c) => (
+   402→   402→                  <SelectItem key={c.id} value={c.id}>
+   403→   403→                    {c.name}
+   404→   404→                  </SelectItem>
+   405→   405→                ))}
+   406→   406→              </SelectContent>
+   407→   407→            </Select>
+   408→   408→          </div>
+   409→   409→
+   410→   410→          {/* Topic */}
+   411→   411→          <div className="space-y-1.5">
+   412→   412→            <Label>Topik</Label>
+   413→   413→            <Select
+   414→   414→              value={topicId}
+   415→   415→              onValueChange={setTopicId}
+   416→   416→              disabled={!subjectId}
+   417→   417→            >
+   418→   418→              <SelectTrigger className="w-full">
+   419→   419→                <SelectValue
+   420→   420→                  placeholder={subjectId ? 'Pilih Topik' : 'Pilih Mata Pelajaran dulu'}
+   421→   421→                />
+   422→   422→              </SelectTrigger>
+   423→   423→              <SelectContent>
+   424→   424→                {filteredTopics.map((t) => (
+   425→   425→                  <SelectItem key={t.id} value={t.id}>
+   426→   426→                    {t.name}
+   427→   427→                  </SelectItem>
+   428→   428→                ))}
+   429→   429→              </SelectContent>
+   430→   430→            </Select>
+   431→   431→          </div>
+   432→   432→        </div>
+   433→   433→
+   434→   434→        {/* Difficulty & Points row */}
+   435→   435→        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   436→   436→          {/* Difficulty */}
+   437→   437→          <div className="space-y-1.5">
+   438→   438→            <Label>Tingkat Kesulitan</Label>
+   439→   439→            <div className="flex gap-0">
+   440→   440→              {DIFFICULTY_LIST.map((d) => (
+   441→   441→                <button
+   442→   442→                  key={d}
+   443→   443→                  type="button"
+   444→   444→                  onClick={() => setDifficulty(d)}
+   445→   445→                  className={`
+   446→   446→                    flex-1 px-4 py-2 text-sm font-medium border transition-all rounded-none first:rounded-l-md last:rounded-r-md
+   447→   447→                    ${
+   448→   448→                      difficulty === d
+   449→   449→                        ? DIFFICULTY_BTN_COLORS[d].split(' ').filter(c => c.startsWith('data-')).join(' ')
+   450→   450→                        : ''
+   451→   451→                    }
+   452→   452→                    ${
+   453→   453→                      difficulty === d
+   454→   454→                        ? d === 'mudah'
+   455→   455→                          ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+   456→   456→                          : d === 'sedang'
+   457→   457→                          ? 'bg-amber-100 text-amber-700 border-amber-300'
+   458→   458→                          : 'bg-red-100 text-red-700 border-red-300'
+   459→   459→                        : 'bg-white text-charcoal-light border-cool-gray-200 hover:bg-cool-gray'
+   460→   460→                    }
+   461→   461→                  `}
+   462→   462→                >
+   463→   463→                  {DIFFICULTY_LABELS[d]}
+   464→   464→                </button>
+   465→   465→              ))}
+   466→   466→            </div>
+   467→   467→          </div>
+   468→   468→
+   469→   469→          {/* Points */}
+   470→   470→          <div className="space-y-1.5">
+   471→   471→            <Label>Poin</Label>
+   472→   472→            <Input
+   473→   473→              type="number"
+   474→   474→              min={1}
+   475→   475→              max={100}
+   476→   476→              value={points}
+   477→   477→              onChange={(e) => setPoints(Number(e.target.value) || 1)}
+   478→   478→              className="w-full"
+   479→   479→            />
+   480→   480→          </div>
+   481→   481→        </div>
+   482→   482→
+   483→   483→        {/* Question Text */}
+   484→   484→        <div className="space-y-1.5">
+   485→   485→          <Label>Teks Soal</Label>
+   486→   486→          <Textarea
+   487→   487→            value={questionText}
+   488→   488→            onChange={(e) => setQuestionText(e.target.value)}
+   489→   489→            placeholder="Tulis teks soal di sini..."
+   490→   490→            rows={4}
+   491→   491→            className="resize-y"
+   492→   492→          />
+   493→   493→        </div>
+   494→   494→      </section>
+   495→   495→
+   496→   496→      {/* ---- Section 3: Type-Specific Editor ---- */}
+   497→   497→      <section className="rounded-xl border border-cool-gray-200 bg-white p-6 space-y-5">
+   498→   498→        <h2 className="text-lg font-semibold" style={{ color: '#2D3436' }}>
+   499→   499→          {QUESTION_TYPE_LABELS[questionType]}
+   500→   500→        </h2>
+   501→   501→
+   502→   502→        {/* ============ Pilihan Ganda (Single Choice) ============ */}
+   503→   503→        {questionType === 'pilihan_ganda' && (
+   504→   504→          <div className="space-y-3">
+   505→   505→            {options.map((opt) => (
+   506→   506→              <div
+   507→   507→                key={opt.id}
+   508→   508→                className="flex items-center gap-3 group"
+   509→   509→              >
+   510→   510→                {/* Label circle */}
+   511→   511→                <div
+   512→   512→                  className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2"
+   513→   513→                  style={{
+   514→   514→                    borderColor: opt.isCorrect ? '#5B6ABF' : '#CBD5E1',
+   515→   515→                    backgroundColor: opt.isCorrect ? 'rgba(91,106,191,0.1)' : 'transparent',
+   516→   516→                    color: opt.isCorrect ? '#5B6ABF' : '#94A3B8',
+   517→   517→                  }}
+   518→   518→                >
+   519→   519→                  {opt.label}
+   520→   520→                </div>
+   521→   521→
+   522→   522→                {/* Option text */}
+   523→   523→                <Input
+   524→   524→                  value={opt.text}
+   525→   525→                  onChange={(e) => updateOptionText(opt.id, e.target.value)}
+   526→   526→                  placeholder={`Opsi ${opt.label}`}
+   527→   527→                  className="flex-1"
+   528→   528→                />
+   529→   529→
+   530→   530→                {/* Radio for correct answer */}
+   531→   531→                <RadioGroup
+   532→   532→                  value={options.find((o) => o.isCorrect)?.id ?? ''}
+   533→   533→                  onValueChange={setSingleCorrect}
+   534→   534→                  className="flex"
+   535→   535→                >
+   536→   536→                  <RadioGroupItem value={opt.id} id={`radio-${opt.id}`} />
+   537→   537→                </RadioGroup>
+   538→   538→
+   539→   539→                {/* Delete button */}
+   540→   540→                <Button
+   541→   541→                  type="button"
+   542→   542→                  variant="ghost"
+   543→   543→                  size="icon"
+   544→   544→                  onClick={() => removeOption(opt.id)}
+   545→   545→                  disabled={options.length <= 2}
+   546→   546→                  className="flex-shrink-0 text-cool-gray-400 hover:text-coral"
+   547→   547→                >
+   548→   548→                  <FontAwesomeIcon icon={faTrash} className="text-sm" />
+   549→   549→                </Button>
+   550→   550→              </div>
+   551→   551→            ))}
+   552→   552→
+   553→   553→            {options.length < 8 && (
+   554→   554→              <Button
+   555→   555→                type="button"
+   556→   556→                variant="outline"
+   557→   557→                size="sm"
+   558→   558→                onClick={addOption}
+   559→   559→                className="gap-2"
+   560→   560→              >
+   561→   561→                <FontAwesomeIcon icon={faPlus} className="text-xs" />
+   562→   562→                Tambah Opsi
+   563→   563→              </Button>
+   564→   564→            )}
+   565→   565→          </div>
+   566→   566→        )}
+   567→   567→
+   568→   568→        {/* ============ Pilihan Ganda Kompleks (Multi-Select) ============ */}
+   569→   569→        {questionType === 'pilihan_ganda_kompleks' && (
+   570→   570→          <div className="space-y-3">
+   571→   571→            <p className="text-xs" style={{ color: '#636E72' }}>
+   572→   572→              Pilih semua jawaban yang benar
+   573→   573→            </p>
+   574→   574→            {options.map((opt) => (
+   575→   575→              <div
+   576→   576→                key={opt.id}
+   577→   577→                className="flex items-center gap-3 group"
+   578→   578→              >
+   579→   579→                {/* Label circle */}
+   580→   580→                <div
+   581→   581→                  className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2"
+   582→   582→                  style={{
+   583→   583→                    borderColor: opt.isCorrect ? '#5B6ABF' : '#CBD5E1',
+   584→   584→                    backgroundColor: opt.isCorrect ? 'rgba(91,106,191,0.1)' : 'transparent',
+   585→   585→                    color: opt.isCorrect ? '#5B6ABF' : '#94A3B8',
+   586→   586→                  }}
+   587→   587→                >
+   588→   588→                  {opt.label}
+   589→   589→                </div>
+   590→   590→
+   591→   591→                {/* Option text */}
+   592→   592→                <Input
+   593→   593→                  value={opt.text}
+   594→   594→                  onChange={(e) => updateOptionText(opt.id, e.target.value)}
+   595→   595→                  placeholder={`Opsi ${opt.label}`}
+   596→   596→                  className="flex-1"
+   597→   597→                />
+   598→   598→
+   599→   599→                {/* Checkbox for correct answer */}
+   600→   600→                <Checkbox
+   601→   601→                  checked={opt.isCorrect}
+   602→   602→                  onCheckedChange={() => toggleMultiCorrect(opt.id)}
+   603→   603→                />
+   604→   604→
+   605→   605→                {/* Delete button */}
+   606→   606→                <Button
+   607→   607→                  type="button"
+   608→   608→                  variant="ghost"
+   609→   609→                  size="icon"
+   610→   610→                  onClick={() => removeOption(opt.id)}
+   611→   611→                  disabled={options.length <= 2}
+   612→   612→                  className="flex-shrink-0 text-cool-gray-400 hover:text-coral"
+   613→   613→                >
+   614→   614→                  <FontAwesomeIcon icon={faTrash} className="text-sm" />
+   615→   615→                </Button>
+   616→   616→              </div>
+   617→   617→            ))}
+   618→   618→
+   619→   619→            {options.length < 8 && (
+   620→   620→              <Button
+   621→   621→                type="button"
+   622→   622→                variant="outline"
+   623→   623→                size="sm"
+   624→   624→                onClick={addOption}
+   625→   625→                className="gap-2"
+   626→   626→              >
+   627→   627→                <FontAwesomeIcon icon={faPlus} className="text-xs" />
+   628→   628→                Tambah Opsi
+   629→   629→              </Button>
+   630→   630→            )}
+   631→   631→          </div>
+   632→   632→        )}
+   633→   633→
+   634→   634→        {/* ============ Menjodohkan (Matching Pairs) ============ */}
+   635→   635→        {questionType === 'menjodohkan' && (
+   636→   636→          <div className="space-y-3">
+   637→   637→            {/* Header */}
+   638→   638→            <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center px-1">
+   639→   639→              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#636E72' }}>
+   640→   640→                Kolom Kiri (Premis)
+   641→   641→              </span>
+   642→   642→              <span className="w-6" />
+   643→   643→              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#636E72' }}>
+   644→   644→                Kolom Kanan (Respon)
+   645→   645→              </span>
+   646→   646→              <span className="w-9" />
+   647→   647→            </div>
+   648→   648→
+   649→   649→            {/* Pairs */}
+   650→   650→            {matchingPairs.map((pair, index) => (
+   651→   651→              <div
+   652→   652→                key={pair.id}
+   653→   653→                className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center"
+   654→   654→              >
+   655→   655→                {/* Number indicator */}
+   656→   656→                <div className="relative">
+   657→   657→                  <span
+   658→   658→                    className="absolute -left-1 -top-2 text-[10px] font-bold"
+   659→   659→                    style={{ color: '#5B6ABF' }}
+   660→   660→                  >
+   661→   661→                    {index + 1}
+   662→   662→                  </span>
+   663→   663→                  <Input
+   664→   664→                    value={pair.premise}
+   665→   665→                    onChange={(e) => updatePair(pair.id, 'premise', e.target.value)}
+   666→   666→                    placeholder="Premis..."
+   667→   667→                    className="w-full"
+   668→   668→                  />
+   669→   669→                </div>
+   670→   670→
+   671→   671→                {/* Connector icon */}
+   672→   672→                <div className="flex items-center justify-center w-8">
+   673→   673→                  <FontAwesomeIcon
+   674→   674→                    icon={faRightLeft}
+   675→   675→                    className="text-cool-gray-300 text-sm"
+   676→   676→                  />
+   677→   677→                </div>
+   678→   678→
+   679→   679→                {/* Response input */}
+   680→   680→                <Input
+   681→   681→                  value={pair.response}
+   682→   682→                  onChange={(e) => updatePair(pair.id, 'response', e.target.value)}
+   683→   683→                  placeholder="Respon..."
+   684→   684→                  className="w-full"
+   685→   685→                />
+   686→   686→
+   687→   687→                {/* Delete button */}
+   688→   688→                <Button
+   689→   689→                  type="button"
+   690→   690→                  variant="ghost"
+   691→   691→                  size="icon"
+   692→   692→                  onClick={() => removePair(pair.id)}
+   693→   693→                  disabled={matchingPairs.length <= 2}
+   694→   694→                  className="flex-shrink-0 text-cool-gray-400 hover:text-coral"
+   695→   695→                >
+   696→   696→                  <FontAwesomeIcon icon={faTrash} className="text-sm" />
+   697→   697→                </Button>
+   698→   698→              </div>
+   699→   699→            ))}
+   700→   700→
+   701→   701→            <Button
+   702→   702→              type="button"
+   703→   703→              variant="outline"
+   704→   704→              size="sm"
+   705→   705→              onClick={addPair}
+   706→   706→              className="gap-2"
+   707→   707→            >
+   708→   708→              <FontAwesomeIcon icon={faPlus} className="text-xs" />
+   709→   709→              Tambah Pasangan
+   710→   710→            </Button>
+   711→   711→          </div>
+   712→   712→        )}
+   713→   713→
+   714→   714→        {/* ============ Isian Singkat (Short Answer) ============ */}
+   715→   715→        {questionType === 'isian_singkat' && (
+   716→   716→          <div className="space-y-3">
+   717→   717→            <Label>Kata Kunci Jawaban</Label>
+   718→   718→            <p className="text-xs" style={{ color: '#636E72' }}>
+   719→   719→              Sistem akan mencocokkan jawaban siswa dengan kata kunci ini
+   720→   720→            </p>
+   721→   721→
+   722→   722→            {keywords.map((kw) => (
+   723→   723→              <div key={kw.id} className="flex items-center gap-3">
+   724→   724→                <Input
+   725→   725→                  value={kw.keyword}
+   726→   726→                  onChange={(e) => updateKeyword(kw.id, e.target.value)}
+   727→   727→                  placeholder="Masukkan kata kunci..."
+   728→   728→                  className="flex-1"
+   729→   729→                />
+   730→   730→                <Button
+   731→   731→                  type="button"
+   732→   732→                  variant="ghost"
+   733→   733→                  size="icon"
+   734→   734→                  onClick={() => removeKeyword(kw.id)}
+   735→   735→                  disabled={keywords.length <= 1}
+   736→   736→                  className="flex-shrink-0 text-cool-gray-400 hover:text-coral"
+   737→   737→                >
+   738→   738→                  <FontAwesomeIcon icon={faTrash} className="text-sm" />
+   739→   739→                </Button>
+   740→   740→              </div>
+   741→   741→            ))}
+   742→   742→
+   743→   743→            <Button
+   744→   744→              type="button"
+   745→   745→              variant="outline"
+   746→   746→              size="sm"
+   747→   747→              onClick={addKeyword}
+   748→   748→              className="gap-2"
+   749→   749→            >
+   750→   750→              <FontAwesomeIcon icon={faPlus} className="text-xs" />
+   751→   751→              Tambah Kata Kunci
+   752→   752→            </Button>
+   753→   753→          </div>
+   754→   754→        )}
+   755→   755→
+   756→   756→        {/* ============ Essay / Uraian ============ */}
+   757→   757→        {questionType === 'essay' && (
+   758→   758→          <div className="space-y-3">
+   759→   759→            <Label>Kunci Jawaban Referensi (untuk AI Grading)</Label>
+   760→   760→            <Textarea
+   761→   761→              value={essayAnswer}
+   762→   762→              onChange={(e) => setEssayAnswer(e.target.value)}
+   763→   763→              placeholder="Tulis jawaban referensi di sini..."
+   764→   764→              rows={6}
+   765→   765→              className="resize-y"
+   766→   766→            />
+   767→   767→            <p className="text-xs" style={{ color: '#636E72' }}>
+   768→   768→              Jawaban ini akan digunakan sebagai referensi untuk AI grading
+   769→   769→            </p>
+   770→   770→          </div>
+   771→   771→        )}
+   772→   772→      </section>
+   773→   773→
+   774→   774→      {/* ---- Section 4: Action Buttons ---- */}
+   775→   775→      <section className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end pb-6">
+   776→   776→        <Button
+   777→   777→          type="button"
+   778→   778→          variant="secondary"
+   779→   779→          size="lg"
+   780→   780→          onClick={handleCancel}
+   781→   781→          className="sm:min-w-[120px]"
+   782→   782→        >
+   783→   783→          Batal
+   784→   784→        </Button>
+   785→   785→        <Button
+   786→   786→          type="button"
+   787→   787→          size="lg"
+   788→   788→          onClick={handleSave}
+   789→   789→          className="sm:min-w-[160px]"
+   790→   790→          style={{ backgroundColor: '#5B6ABF' }}
+   791→   791→        >
+   792→   792→          Simpan Soal
+   793→   793→        </Button>
+   794→   794→      </section>
+   795→   795→    </div>
+   796→   796→  );
+   797→   797→}
+   798→   798→
