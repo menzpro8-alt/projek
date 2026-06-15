@@ -6,6 +6,7 @@ import { Icon } from '@/components/shared/Icon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { RoleSelector } from './RoleSelector';
 
 // Teacher components
@@ -107,12 +108,12 @@ export function AppShell() {
       default:
         return (
           <div className="flex items-center justify-center h-full min-h-[400px]">
-            <div className="text-center p-8 bg-white rounded-2xl border border-dashed border-[#CBD5E1] max-w-md">
-              <div className="w-14 h-14 rounded-xl bg-[#F1F5F9] flex items-center justify-center mx-auto mb-4">
-                <Icon icon="layer-group" size="lg" className="text-[#94A3B8]" />
+            <div className="text-center p-8 bg-card rounded-2xl border border-dashed border-border max-w-md">
+              <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
+                <Icon icon="layer-group" size="lg" className="text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-[#2D3436] mb-1">{pageTitle}</h3>
-              <p className="text-sm text-[#636E72]">This section is under development.</p>
+              <h3 className="text-lg font-semibold text-foreground mb-1">{pageTitle}</h3>
+              <p className="text-sm text-muted-foreground">This section is under development.</p>
             </div>
           </div>
         );
@@ -120,7 +121,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F1F5F9] overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -133,19 +134,18 @@ export function AppShell() {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-[260px] bg-white border-r border-[#E2E8F0]
-          flex flex-col transition-transform duration-200 ease-in-out
+          w-[260px] glass-card flex flex-col transition-transform duration-200 ease-in-out border-r
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Logo area */}
-        <div className="h-16 flex items-center gap-3 px-5 border-b border-[#E2E8F0] shrink-0">
-          <div className="w-9 h-9 rounded-lg bg-[#5B6ABF] flex items-center justify-center">
+        <div className="h-16 flex items-center gap-3 px-5 border-b border-border shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo to-indigo-dark flex items-center justify-center shadow-sm">
             <Icon icon="graduation-cap" size="md" className="text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold text-[#2D3436] leading-tight">Ujian Online</span>
-            <span className="text-[10px] text-[#94A3B8] font-medium">AI-Powered Platform</span>
+            <span className="text-sm font-bold text-foreground leading-tight">Ujian Online</span>
+            <span className="text-[10px] text-muted-foreground font-medium">AI-Powered Platform</span>
           </div>
         </div>
 
@@ -158,24 +158,24 @@ export function AppShell() {
                 <button
                   key={item.key}
                   onClick={() => handleNavClick(item.key)}
-                  className={`
+                    className={`
                     w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                     transition-colors duration-150 cursor-pointer
                     ${
                       isActive
-                        ? 'bg-[#5B6ABF]/10 text-[#5B6ABF]'
-                        : 'text-[#636E72] hover:bg-[#F1F5F9] hover:text-[#2D3436]'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     }
                   `}
                 >
                   <Icon
                     icon={item.icon}
                     size="sm"
-                    className={isActive ? 'text-[#5B6ABF]' : 'text-[#94A3B8]'}
+                    className={isActive ? 'text-primary' : 'text-muted-foreground'}
                   />
                   <span>{item.label}</span>
                   {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#5B6ABF]" />
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
                   )}
                 </button>
               );
@@ -184,12 +184,12 @@ export function AppShell() {
         </ScrollArea>
 
         {/* Sidebar footer */}
-        <div className="shrink-0 p-3 border-t border-[#E2E8F0]">
+        <div className="shrink-0 p-3 border-t border-border">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleSwitchRole}
-            className="w-full justify-start gap-2 text-[#636E72] hover:text-[#2D3436]"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
           >
             <Icon icon="right-from-bracket" size="sm" />
             <span>Switch Role</span>
@@ -200,7 +200,7 @@ export function AppShell() {
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-4 sm:px-6 shrink-0">
+        <header className="h-16 glass-card flex items-center justify-between px-4 sm:px-6 shrink-0 rounded-none border-b">
           <div className="flex items-center gap-3">
             {/* Mobile menu toggle */}
             <Button
@@ -212,16 +212,17 @@ export function AppShell() {
               <Icon icon="bars" size="md" />
             </Button>
 
-            <h1 className="text-lg font-semibold text-[#2D3436]">{pageTitle}</h1>
+            <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Badge
               variant="secondary"
               className={
                 role === 'teacher'
-                  ? 'bg-[#5B6ABF]/10 text-[#5B6ABF] border-[#5B6ABF]/20 hover:bg-[#5B6ABF]/15'
-                  : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                  ? 'bg-primary/10 text-primary border-primary/20'
+                  : 'bg-teal/10 text-teal border-teal/20'
               }
             >
               <Icon

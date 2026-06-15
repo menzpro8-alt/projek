@@ -155,6 +155,11 @@ export const ICON_MAP: Record<string, string> = {
   faMicrochip: 'microchip',
   faRobot: 'robot',
   faWandMagicSparkles: 'wand-magic-sparkles',
+
+  // Theme
+  faSun: 'sun',
+  faMoon: 'moon',
+  faAdjust: 'circle-half-stroke',
 };
 
 // Helper to get icon name from the ICON_MAP

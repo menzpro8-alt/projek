@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/shared/ThemeProvider";
 import Script from "next/script";
 
 const geistSans = Geist({
@@ -31,9 +32,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <Script src="https://js.puter.com/v2/" strategy="beforeInteractive" />
-        {children}
-        <Toaster />
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <Script src="https://js.puter.com/v2/" strategy="beforeInteractive" />
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
