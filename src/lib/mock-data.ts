@@ -112,10 +112,7 @@ export const MOCK_QUESTIONS: Question[] = [
     difficulty: 'mudah',
     text: 'Rata-rata dari data 5, 7, 8, 12, 3 adalah...',
     points: 10,
-    shortAnswerKeywords: [
-      { id: 'q4k1', keyword: '7' },
-      { id: 'q4k2', keyword: 'tujuh' },
-    ],
+    shortAnswer: '7',
     createdAt: '2025-01-16T11:00:00Z',
     updatedAt: '2025-01-16T11:00:00Z',
   },
@@ -195,9 +192,7 @@ export const MOCK_QUESTIONS: Question[] = [
     difficulty: 'sedang',
     text: 'What is the past tense of the verb "go"?',
     points: 5,
-    shortAnswerKeywords: [
-      { id: 'q9k1', keyword: 'went' },
-    ],
+    shortAnswer: 'went',
     createdAt: '2025-01-19T08:00:00Z',
     updatedAt: '2025-01-19T08:00:00Z',
   },

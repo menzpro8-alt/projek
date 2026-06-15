@@ -76,9 +76,9 @@ export default function ExamResults() {
             break;
           }
           case 'isian_singkat': {
-            const keywords = question.shortAnswerKeywords?.map(k => k.keyword.toLowerCase()) ?? [];
+            const correctAnswer = (question.shortAnswer || '').toLowerCase().trim();
             const answerText = (answer.shortAnswer ?? '').toLowerCase().trim();
-            if (keywords.some(k => answerText === k)) {
+            if (correctAnswer && answerText === correctAnswer) {
               earned = points;
               isCorrect = true;
             }
@@ -142,7 +142,7 @@ export default function ExamResults() {
           .join('; ') ?? '-';
       }
       case 'isian_singkat': {
-        return question.shortAnswerKeywords?.map(k => k.keyword).join(' / ') ?? '-';
+        return question.shortAnswer || '-';
       }
       case 'essay': {
         return question.essayReferenceAnswer ?? '-';

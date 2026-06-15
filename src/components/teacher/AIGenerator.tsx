@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useExamStore } from '@/lib/store';
 import { SUBJECTS, CLASS_GRADES } from '@/lib/mock-data';
+import { saveGeneratedQuestions } from '@/app/actions/question';
 import {
   QuestionType,
   Difficulty,
@@ -56,6 +57,8 @@ import {
   DIFFICULTY_COLORS,
 } from '@/lib/types';
 import { toast } from 'sonner';
+
+declare global { interface Window { puter: any; } }
 
 // ---------------------------------------------------------------------------
 // Question type card definitions (matching QuestionEditor style)
@@ -116,10 +119,12 @@ export default function AIGenerator() {
     aiGrade, setAiGrade,
     aiDifficulty, setAiDifficulty,
     aiQuestionCount, setAiQuestionCount,
-    aiQuestionType, setAiQuestionType,
+    aiQuestionTypes, setAiQuestionTypes,
+    aiModel, setAiModel,
   } = useExamStore();
 
   const [topic, setTopic] = useState('');
+  const [customSubject, setCustomSubject] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<AIGeneratedQuestion[]>([]);
   const [source, setSource] = useState<string>('');
@@ -136,31 +141,117 @@ export default function AIGenerator() {
     setSource('');
     setGenerationStep(0);
 
-    // Simulate progress steps
     const step1 = setTimeout(() => setGenerationStep(1), 800);
     const step2 = setTimeout(() => setGenerationStep(2), 1800);
 
     try {
-      const response = await fetch('/api/ai-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: aiSubject,
-          grade: aiGrade,
-          difficulty: mixedDifficulty ? 'sedang' : aiDifficulty,
-          questionCount: aiQuestionCount,
-          questionType: aiQuestionType,
-          topic,
-        }),
-      });
+      if (!window.puter) { toast.error('Puter.js belum dimuat. Silakan muat ulang halaman.'); setIsGenerating(false); return; }
+      if (!window.puter.auth.isSignedIn()) {
+        await window.puter.auth.signIn();
+      }
 
-      const data = await response.json();
-      setGeneratedQuestions(data.questions || []);
-      setSource(data.source || 'unknown');
+      const clampedCount = Math.min(Math.max(aiQuestionCount || 5, 1), 20);
+      const requestedTypes = aiQuestionTypes && aiQuestionTypes.length > 0 ? aiQuestionTypes : ['pilihan_ganda'];
+      
+
+      const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
+      const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
+      const topicName = topic || subjectName;
+
+      const typeLabels: Record<QuestionType, string> = {
+        pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
+        pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
+        menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
+        isian_singkat: 'Isian Singkat (exact short answer)',
+        essay: 'Essay / Uraian (open-ended with reference answer)',
+      };
+
+      const typesDescription = requestedTypes.map(t => `${t} (${typeLabels[t as QuestionType]})`).join(', ');
+
+      const prompt = `Generate ${clampedCount} Indonesian education questions with the following specifications:
+- Subject: ${subjectName}
+- Class/Grade: ${gradeName}
+- Topic: ${topicName}
+- Difficulty: ${mixedDifficulty ? 'sedang' : aiDifficulty}
+- Question Types to include: ${typesDescription}
+
+STRICT RULE: The questions and answers MUST ONLY be about the specified Subject (${subjectName}) and Topic (${topicName}). If you generate questions about any other unrelated subject, it is a critical failure. All generated content must correctly match the subject!
+
+Return ONLY a valid JSON array (no markdown, no code blocks). Each element must be an object with a "type" field indicating the question type. Depending on the "type", the structure must be:
+
+For type "pilihan_ganda":
+{"type": "pilihan_ganda", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
+
+For type "pilihan_ganda_kompleks":
+{"type": "pilihan_ganda_kompleks", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
+
+For type "menjodohkan":
+{"type": "menjodohkan", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}, {"premise": "left item 2", "response": "right item 2"}], "points": 20}
+
+For type "isian_singkat":
+{"type": "isian_singkat", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "shortAnswer": "exact short answer", "points": 10}
+
+For type "essay":
+{"type": "essay", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
+
+Try to distribute the ${clampedCount} questions among the requested types: ${requestedTypes.join(', ')}. All questions must be in Bahasa Indonesia and appropriate for the specified grade level. Generate exactly ${clampedCount} questions.`;
+
+      
+      let result;
+      try {
+        result = await window.puter.ai.chat(prompt, aiModel ? { model: aiModel } : undefined);
+      } catch (err) {
+        console.warn('Puter AI with model failed, falling back to default:', err);
+        result = await window.puter.ai.chat(prompt);
+      }
+
+      const content = typeof result === 'string' ? result : (result?.message?.content || '');
+      
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('No JSON array found in response: ' + content);
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      const questions: AIGeneratedQuestion[] = (parsed as Record<string, unknown>[]).map(
+        (q, i) => {
+          const id = `ai-${Date.now()}-${i}`;
+          const tempId = `temp-${Date.now()}-${i}`;
+          return {
+            id,
+            tempId,
+            type: (q.type as QuestionType) || requestedTypes[i % requestedTypes.length] || 'pilihan_ganda',
+            text: (q.text as string) || `Soal tentang ${topicName}`,
+            difficulty: mixedDifficulty ? 'sedang' : (aiDifficulty as Difficulty),
+            options: (q.options as AIGeneratedQuestion['options'])?.map((opt, oi) => ({
+              ...opt,
+              id: `${id}-opt-${oi}`,
+            })),
+            matchingPairs: (q.matchingPairs as AIGeneratedQuestion['matchingPairs'])?.map(
+              (pair, pi) => ({
+                ...pair,
+                id: `${id}-p${pi}`,
+              })
+            ),
+            shortAnswerKeywords: (
+              q.shortAnswerKeywords as AIGeneratedQuestion['shortAnswerKeywords']
+            )?.map((kw, ki) => ({
+              ...kw,
+              id: `${id}-k${ki}`,
+            })),
+            essayReferenceAnswer: q.essayReferenceAnswer as string | undefined,
+            points: (q.points as number) || 10,
+            isSelected: true,
+          };
+        }
+      );
+
+      setGeneratedQuestions(questions);
+      setSource('ai');
       setGenerationStep(3);
-    } catch {
+    } catch (e: any) {
+      console.error(e);
       setGeneratedQuestions([]);
-      setSource('error');
+      setSource('error: ' + (e.message || String(e)));
     } finally {
       clearTimeout(step1);
       clearTimeout(step2);
@@ -169,41 +260,115 @@ export default function AIGenerator() {
         setGenerationStep(0);
       }, 500);
     }
-  }, [aiSubject, aiGrade, aiDifficulty, aiQuestionCount, aiQuestionType, topic, mixedDifficulty]);
+  }, [aiSubject, aiGrade, aiDifficulty, aiQuestionCount, aiQuestionTypes, aiModel, topic, mixedDifficulty]);
 
   const handleReroll = useCallback(async (index: number) => {
     const question = generatedQuestions[index];
     setIsGenerating(true);
 
     try {
-      const response = await fetch('/api/ai-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: aiSubject,
-          grade: aiGrade,
-          difficulty: question.difficulty,
-          questionCount: 1,
-          questionType: question.type,
-          topic,
-        }),
-      });
+      if (!window.puter.auth.isSignedIn()) {
+        await window.puter.auth.signIn();
+      }
+      
+      const typeLabels: Record<QuestionType, string> = {
+        pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
+        pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
+        menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
+        isian_singkat: 'Isian Singkat (exact short answer)',
+        essay: 'Essay / Uraian (open-ended with reference answer)',
+      };
+      
 
-      const data = await response.json();
-      if (data.questions && data.questions.length > 0) {
-        const newQ = { ...data.questions[0], isSelected: true };
+      const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
+      const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
+      const topicName = topic || subjectName;
+
+      const prompt = `Generate 1 Indonesian education question with the following specifications:
+- Subject: ${subjectName}
+- Class/Grade: ${gradeName}
+- Topic: ${topicName}
+- Difficulty: ${question.difficulty}
+- Question Type: ${question.type} (${typeLabels[question.type]})
+
+STRICT RULE: The questions and answers MUST ONLY be about the specified Subject (${subjectName}) and Topic (${topicName}). If you generate questions about any other unrelated subject, it is a critical failure. All generated content must correctly match the subject!
+
+Return ONLY a valid JSON array containing exactly 1 object with a "type" field indicating the question type. Depending on the "type", the structure must be:
+
+For type "pilihan_ganda":
+{"type": "pilihan_ganda", "text": "question text", "difficulty": "${question.difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
+
+For type "pilihan_ganda_kompleks":
+{"type": "pilihan_ganda_kompleks", "text": "question text", "difficulty": "${question.difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
+
+For type "menjodohkan":
+{"type": "menjodohkan", "text": "question text", "difficulty": "${question.difficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}], "points": 20}
+
+For type "isian_singkat":
+{"type": "isian_singkat", "text": "question text", "difficulty": "${question.difficulty}", "shortAnswer": "exact short answer", "points": 10}
+
+For type "essay":
+{"type": "essay", "text": "question text", "difficulty": "${question.difficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
+`;
+
+      
+      let result;
+      try {
+        result = await window.puter.ai.chat(prompt, aiModel ? { model: aiModel } : undefined);
+      } catch (err) {
+        console.warn('Puter AI with model failed, falling back to default:', err);
+        result = await window.puter.ai.chat(prompt);
+      }
+
+      const content = typeof result === 'string' ? result : (result?.message?.content || '');
+      
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('No JSON array found: ' + content);
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && parsed.length > 0) {
+        const q = parsed[0];
+        const id = `ai-${Date.now()}`;
+        const newQ: AIGeneratedQuestion = {
+          id,
+          tempId: `temp-${Date.now()}`,
+          type: (q.type as QuestionType) || question.type,
+          text: (q.text as string) || `Soal tentang ${topicName}`,
+          difficulty: question.difficulty,
+          options: (q.options as AIGeneratedQuestion['options'])?.map((opt, oi) => ({
+            ...opt,
+            id: `${id}-opt-${oi}`,
+          })),
+          matchingPairs: (q.matchingPairs as AIGeneratedQuestion['matchingPairs'])?.map(
+            (pair, pi) => ({
+              ...pair,
+              id: `${id}-p${pi}`,
+            })
+          ),
+          shortAnswerKeywords: (
+            q.shortAnswerKeywords as AIGeneratedQuestion['shortAnswerKeywords']
+          )?.map((kw, ki) => ({
+            ...kw,
+            id: `${id}-k${ki}`,
+          })),
+          essayReferenceAnswer: q.essayReferenceAnswer as string | undefined,
+          points: (q.points as number) || 10,
+          isSelected: true,
+        };
+
         setGeneratedQuestions(prev => {
           const updated = [...prev];
           updated[index] = newQ;
           return updated;
         });
       }
-    } catch {
+    } catch (e: any) {
+      console.error(e);
       // keep the existing question on failure
     } finally {
       setIsGenerating(false);
     }
-  }, [generatedQuestions, aiSubject, aiGrade, topic]);
+  }, [generatedQuestions, aiSubject, aiGrade, aiModel, topic]);
 
   const handleDelete = useCallback((index: number) => {
     setGeneratedQuestions(prev => prev.filter((_, i) => i !== index));
@@ -280,12 +445,28 @@ export default function AIGenerator() {
     );
   }, []);
 
-  const handleSaveAll = useCallback(() => {
+  const handleSaveAll = useCallback(async () => {
     const selected = generatedQuestions.filter(q => q.isSelected);
-    toast.success(`${selected.length} soal berhasil disimpan!`, {
-      description: 'Semua soal terpilih telah ditambahkan ke bank soal.',
-    });
-  }, [generatedQuestions]);
+    if (selected.length === 0) return;
+    
+    const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
+    const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
+    const topicName = topic || subjectName;
+
+    const result = await saveGeneratedQuestions(selected, subjectName, gradeName, topicName);
+    
+    if (result.success) {
+      toast.success(`${result.count} soal berhasil disimpan!`, {
+        description: 'Semua soal terpilih telah ditambahkan ke database Supabase.',
+      });
+      // Optionally clear after saving
+      // setGeneratedQuestions(generatedQuestions.filter(q => !q.isSelected));
+    } else {
+      toast.error('Gagal menyimpan soal', {
+        description: result.error,
+      });
+    }
+  }, [generatedQuestions, aiSubject, customSubject, aiGrade, topic]);
 
   const handleSaveDraft = useCallback(() => {
     const selected = generatedQuestions.filter(q => q.isSelected);
@@ -355,8 +536,17 @@ export default function AIGenerator() {
                         {s.name}
                       </SelectItem>
                     ))}
+                    <SelectItem value="custom">Lainnya / Ketik Manual...</SelectItem>
                   </SelectContent>
                 </Select>
+                {aiSubject === 'custom' && (
+                  <Input
+                    placeholder="Ketik mata pelajaran..."
+                    value={customSubject}
+                    onChange={e => setCustomSubject(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
               </div>
 
               {/* Class/Grade */}
@@ -374,6 +564,25 @@ export default function AIGenerator() {
                         {c.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+
+              {/* Model Select */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium" style={{ color: '#2D3436' }}>
+                  AI Model (Puter)
+                </Label>
+                <Select value={aiModel} onValueChange={setAiModel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih Model AI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="claude-3-5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                    <SelectItem value="meta-llama/Llama-3-70b-chat-hf">Llama 3 70B</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -501,17 +710,41 @@ export default function AIGenerator() {
 
               {/* Question Type - Card style selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium" style={{ color: '#2D3436' }}>
-                  Tipe Soal
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium" style={{ color: '#2D3436' }}>
+                    Tipe Soal
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      if (aiQuestionTypes.length === QUESTION_TYPE_CARDS.length) {
+                        setAiQuestionTypes(['pilihan_ganda']);
+                      } else {
+                        setAiQuestionTypes(QUESTION_TYPE_CARDS.map(c => c.type));
+                      }
+                    }}
+                  >
+                    {aiQuestionTypes.length === QUESTION_TYPE_CARDS.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
+                  </Button>
+                </div>
                 <div className="grid grid-cols-5 gap-2">
-                  {QUESTION_TYPE_CARDS.map(({ type, icon, label, subtitle }) => (
+                  {QUESTION_TYPE_CARDS.map(({ type, icon, label, subtitle }) => {
+                    const isSelected = aiQuestionTypes.includes(type);
+                    return (
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setAiQuestionType(type)}
+                      onClick={() => {
+                        if (isSelected && aiQuestionTypes.length > 1) {
+                          setAiQuestionTypes(aiQuestionTypes.filter(t => t !== type));
+                        } else if (!isSelected) {
+                          setAiQuestionTypes([...aiQuestionTypes, type]);
+                        }
+                      }}
                       className={`flex flex-col items-center gap-1 p-2.5 rounded-lg border-2 transition-all text-center ${
-                        aiQuestionType === type
+                        isSelected
                           ? 'border-[#5B6ABF] bg-[#5B6ABF]/10'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
@@ -519,12 +752,12 @@ export default function AIGenerator() {
                       <FontAwesomeIcon
                         icon={icon}
                         className={`text-sm ${
-                          aiQuestionType === type ? 'text-[#5B6ABF]' : 'text-slate-400'
+                          isSelected ? 'text-[#5B6ABF]' : 'text-slate-400'
                         }`}
                       />
                       <span
                         className={`text-[10px] leading-tight ${
-                          aiQuestionType === type ? 'text-[#5B6ABF] font-medium' : 'text-slate-500'
+                          isSelected ? 'text-[#5B6ABF] font-medium' : 'text-slate-500'
                         }`}
                       >
                         {label}
@@ -533,7 +766,7 @@ export default function AIGenerator() {
                         {subtitle}
                       </span>
                     </button>
-                  ))}
+                  )})}
                 </div>
               </div>
 
@@ -783,32 +1016,46 @@ export default function AIGenerator() {
                                   )}
 
                                   {q.type === 'menjodohkan' && q.matchingPairs && (
-                                    <div className="space-y-2">
-                                      <p className="text-[11px] font-semibold" style={{ color: '#636e72' }}>Pasangan Menjodohkan</p>
-                                      {q.matchingPairs.map((pair, pi) => (
-                                        <div key={pair.id || pi} className="flex items-center gap-2">
-                                          <Input
-                                            value={pair.premise}
-                                            onChange={e =>
-                                              handleUpdatePair(index, pi, 'premise', e.target.value)
-                                            }
-                                            className="text-sm h-8 flex-1"
-                                            placeholder="Kiri"
-                                          />
-                                          <FontAwesomeIcon
-                                            icon={faRightLeft}
-                                            className="text-slate-400 text-xs shrink-0"
-                                          />
-                                          <Input
-                                            value={pair.response}
-                                            onChange={e =>
-                                              handleUpdatePair(index, pi, 'response', e.target.value)
-                                            }
-                                            className="text-sm h-8 flex-1"
-                                            placeholder="Kanan"
-                                          />
-                                        </div>
-                                      ))}
+                                    <div className="space-y-4 mt-2">
+                                      <p className="text-[11px] font-semibold" style={{ color: '#636e72' }}>
+                                        Pasangan Tarik Garis (Kunci Jawaban)
+                                      </p>
+                                      <div className="flex flex-col gap-3 relative">
+                                        {q.matchingPairs.map((pair, pi) => (
+                                          <div key={pair.id || pi} className="flex items-center gap-0">
+                                            {/* Kotak Kiri (Premise) */}
+                                            <div className="flex-1 relative bg-slate-50 p-1.5 rounded-lg border border-slate-200 z-10">
+                                              <Input
+                                                value={pair.premise}
+                                                onChange={e =>
+                                                  handleUpdatePair(index, pi, 'premise', e.target.value)
+                                                }
+                                                className="text-sm h-8 bg-white border-slate-200"
+                                                placeholder="Pernyataan Kiri"
+                                              />
+                                              {/* Titik Konektor Kiri */}
+                                              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-[#5B6ABF] rounded-full translate-x-[7px] border-2 border-white shadow-sm" />
+                                            </div>
+
+                                            {/* Garis Penghubung Tengah */}
+                                            <div className="w-12 h-[2px] bg-gradient-to-r from-[#5B6ABF] to-[#00b894] opacity-50 z-0" />
+
+                                            {/* Kotak Kanan (Response) */}
+                                            <div className="flex-1 relative bg-slate-50 p-1.5 rounded-lg border border-slate-200 z-10">
+                                              {/* Titik Konektor Kanan */}
+                                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-[#00b894] rounded-full -translate-x-[7px] border-2 border-white shadow-sm" />
+                                              <Input
+                                                value={pair.response}
+                                                onChange={e =>
+                                                  handleUpdatePair(index, pi, 'response', e.target.value)
+                                                }
+                                                className="text-sm h-8 bg-white border-slate-200"
+                                                placeholder="Jawaban Kanan"
+                                              />
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   )}
 

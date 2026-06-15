@@ -70,7 +70,7 @@ export interface Question {
   // Type-specific fields
   options?: QuestionOption[];           // For pilihan_ganda & pilihan_ganda_kompleks
   matchingPairs?: MatchingPair[];       // For menjodohkan
-  shortAnswerKeywords?: ShortAnswerKeyword[]; // For isian_singkat
+  shortAnswer?: string; // For isian_singkat
   essayReferenceAnswer?: string;       // For essay
   createdAt: string;
   updatedAt: string;
@@ -154,7 +154,7 @@ export interface AIGenerateRequest {
   grade: string;
   difficulty: Difficulty;
   questionCount: number;
-  questionType: QuestionType;
+  questionTypes: QuestionType[];
   topic?: string;
 }
 

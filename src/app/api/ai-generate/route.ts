@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { zAI } from 'z-ai-web-dev-sdk';
+import puter from 'puter';
 import { Difficulty, QuestionType, AIGeneratedQuestion } from '@/lib/types';
 
 function generateFallbackQuestions(
@@ -7,7 +7,7 @@ function generateFallbackQuestions(
   grade: string,
   difficulty: Difficulty,
   questionCount: number,
-  questionType: QuestionType,
+  questionTypes: QuestionType[],
   topic: string
 ): AIGeneratedQuestion[] {
   const questions: AIGeneratedQuestion[] = [];
@@ -16,8 +16,9 @@ function generateFallbackQuestions(
   for (let i = 0; i < questionCount; i++) {
     const id = `ai-${Date.now()}-${i}`;
     const tempId = `temp-${Date.now()}-${i}`;
+    const qType = questionTypes[i % questionTypes.length] || 'pilihan_ganda';
 
-    if (questionType === 'pilihan_ganda') {
+    if (qType === 'pilihan_ganda') {
       const optionLabels = ['A', 'B', 'C', 'D', 'E'];
       const correctIdx = Math.floor(Math.random() * 5);
       questions.push({
@@ -35,7 +36,7 @@ function generateFallbackQuestions(
         points: difficulty === 'mudah' ? 5 : difficulty === 'sedang' ? 10 : 15,
         isSelected: true,
       });
-    } else if (questionType === 'pilihan_ganda_kompleks') {
+    } else if (qType === 'pilihan_ganda_kompleks') {
       const optionLabels = ['A', 'B', 'C', 'D', 'E'];
       questions.push({
         id,
@@ -52,7 +53,7 @@ function generateFallbackQuestions(
         points: difficulty === 'mudah' ? 10 : difficulty === 'sedang' ? 15 : 20,
         isSelected: true,
       });
-    } else if (questionType === 'menjodohkan') {
+    } else if (qType === 'menjodohkan') {
       questions.push({
         id,
         tempId,
@@ -68,7 +69,7 @@ function generateFallbackQuestions(
         points: 20,
         isSelected: true,
       });
-    } else if (questionType === 'isian_singkat') {
+    } else if (qType === 'isian_singkat') {
       questions.push({
         id,
         tempId,
@@ -102,12 +103,12 @@ function generateFallbackQuestions(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { subject, grade, difficulty, questionCount, questionType, topic } = body as {
+    const { subject, grade, difficulty, questionCount, questionTypes, topic } = body as {
       subject: string;
       grade: string;
       difficulty: Difficulty;
       questionCount: number;
-      questionType: QuestionType;
+      questionTypes: QuestionType[];
       topic?: string;
     };
 
@@ -121,48 +122,50 @@ export async function POST(request: NextRequest) {
       essay: 'Essay / Uraian (open-ended with reference answer)',
     };
 
+    const requestedTypes: QuestionType[] = questionTypes && questionTypes.length > 0 ? questionTypes : ['pilihan_ganda'];
+    const typesDescription = requestedTypes.map(t => `${t} (${typeLabels[t as QuestionType]})`).join(', ');
+
     const prompt = `Generate ${clampedCount} Indonesian education questions with the following specifications:
 - Subject: ${subject}
 - Class/Grade: ${grade}
 - Topic: ${topic || subject}
 - Difficulty: ${difficulty}
-- Question Type: ${typeLabels[questionType]}
+- Question Types to include: ${typesDescription}
 
-Return ONLY a valid JSON array (no markdown, no code blocks). Each element must be an object with this structure:
+Return ONLY a valid JSON array (no markdown, no code blocks). Each element must be an object with a "type" field indicating the question type. Depending on the "type", the structure must be:
 
-For pilihan_ganda:
-{"text": "question text", "difficulty": "${difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
+For type "pilihan_ganda":
+{"type": "pilihan_ganda", "text": "question text", "difficulty": "${difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
 
-For pilihan_ganda_kompleks:
-{"text": "question text", "difficulty": "${difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
+For type "pilihan_ganda_kompleks":
+{"type": "pilihan_ganda_kompleks", "text": "question text", "difficulty": "${difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
 
-For menjodohkan:
-{"text": "question text", "difficulty": "${difficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}, {"premise": "left item 2", "response": "right item 2"}, {"premise": "left item 3", "response": "right item 3"}, {"premise": "left item 4", "response": "right item 4"}], "points": 20}
+For type "menjodohkan":
+{"type": "menjodohkan", "text": "question text", "difficulty": "${difficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}, {"premise": "left item 2", "response": "right item 2"}, {"premise": "left item 3", "response": "right item 3"}, {"premise": "left item 4", "response": "right item 4"}], "points": 20}
 
-For isian_singkat:
-{"text": "question text", "difficulty": "${difficulty}", "shortAnswerKeywords": [{"keyword": "answer keyword"}], "points": 10}
+For type "isian_singkat":
+{"type": "isian_singkat", "text": "question text", "difficulty": "${difficulty}", "shortAnswer": "exact short answer", "points": 10}
 
-For essay:
-{"text": "question text", "difficulty": "${difficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
+For type "essay":
+{"type": "essay", "text": "question text", "difficulty": "${difficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
 
-All questions must be in Bahasa Indonesia and appropriate for the specified grade level. Generate exactly ${clampedCount} questions.`;
+Try to distribute the ${clampedCount} questions among the requested types: ${requestedTypes.join(', ')}. All questions must be in Bahasa Indonesia and appropriate for the specified grade level. Generate exactly ${clampedCount} questions.`;
 
     try {
-      const result = await zAI.llm.chat({
-        model: 'default',
-        messages: [
+      const result = await puter.ai.chat(
+        [
           {
             role: 'system',
             content:
               'You are an expert Indonesian education question generator. Generate questions in Bahasa Indonesia. Return ONLY valid JSON array without any markdown formatting or code blocks.',
           },
           { role: 'user', content: prompt },
-        ],
-      });
+        ]
+      );
 
       let parsed: unknown[];
       try {
-        const content = result.choices?.[0]?.message?.content || '';
+        const content = typeof result === 'string' ? result : (result?.message?.content || '');
         // Try to extract JSON array from the response
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
@@ -178,7 +181,7 @@ All questions must be in Bahasa Indonesia and appropriate for the specified grad
             grade,
             difficulty,
             clampedCount,
-            questionType,
+            requestedTypes,
             topic || ''
           ),
           source: 'fallback',
@@ -193,7 +196,7 @@ All questions must be in Bahasa Indonesia and appropriate for the specified grad
           return {
             id,
             tempId,
-            type: questionType,
+            type: (q.type as QuestionType) || requestedTypes[i % requestedTypes.length] || 'pilihan_ganda',
             text: (q.text as string) || `Soal tentang ${topic || subject}`,
             difficulty,
             options: (q.options as AIGeneratedQuestion['options'])?.map((opt, oi) => ({
@@ -228,7 +231,7 @@ All questions must be in Bahasa Indonesia and appropriate for the specified grad
           grade,
           difficulty,
           clampedCount,
-          questionType,
+          requestedTypes,
           topic || ''
         ),
         source: 'fallback',

@@ -58,12 +58,14 @@ interface ExamStore {
   aiGrade: string;
   aiDifficulty: string;
   aiQuestionCount: number;
-  aiQuestionType: QuestionType;
+  aiQuestionTypes: QuestionType[];
+  aiModel: string;
   setAiSubject: (v: string) => void;
   setAiGrade: (v: string) => void;
   setAiDifficulty: (v: string) => void;
   setAiQuestionCount: (n: number) => void;
-  setAiQuestionType: (t: QuestionType) => void;
+  setAiQuestionTypes: (t: QuestionType[]) => void;
+  setAiModel: (m: string) => void;
 }
 
 const VIEW_HISTORY: AppView[] = [];
@@ -142,10 +144,12 @@ export const useExamStore = create<ExamStore>((set, get) => ({
   aiGrade: '',
   aiDifficulty: 'sedang',
   aiQuestionCount: 5,
-  aiQuestionType: 'pilihan_ganda',
+  aiQuestionTypes: ['pilihan_ganda'],
+  aiModel: 'claude-3-5-sonnet',
   setAiSubject: (aiSubject) => set({ aiSubject }),
   setAiGrade: (aiGrade) => set({ aiGrade }),
   setAiDifficulty: (aiDifficulty) => set({ aiDifficulty }),
   setAiQuestionCount: (aiQuestionCount) => set({ aiQuestionCount }),
-  setAiQuestionType: (aiQuestionType) => set({ aiQuestionType }),
+  setAiQuestionTypes: (aiQuestionTypes) => set({ aiQuestionTypes }),
+  setAiModel: (aiModel) => set({ aiModel }),
 }));
