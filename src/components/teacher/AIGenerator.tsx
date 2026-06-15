@@ -572,7 +572,7 @@ For type "essay":
               {/* Model Select */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={{ color: '#2D3436' }}>
-                  AI Model (Puter)
+                  AI Model
                 </Label>
                 <Select value={aiModel} onValueChange={setAiModel}>
                   <SelectTrigger className="w-full">
