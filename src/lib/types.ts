@@ -6,9 +6,7 @@
 export type QuestionType = 
   | 'pilihan_ganda'        // Single Choice
   | 'pilihan_ganda_kompleks' // Multi-Select
-  | 'menjodohkan'          // Matching Pairs
-  | 'isian_singkat'        // Short Answer
-  | 'essay';               // Essay/Uraian
+  | 'menjodohkan';         // Matching Pairs
 
 export type Difficulty = 'mudah' | 'sedang' | 'sulit';
 
@@ -235,16 +233,12 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   pilihan_ganda: 'Pilihan Ganda',
   pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks',
   menjodohkan: 'Menjodohkan',
-  isian_singkat: 'Isian Singkat',
-  essay: 'Essay / Uraian',
 };
 
 export const QUESTION_TYPE_ICONS: Record<QuestionType, string> = {
   pilihan_ganda: 'faCircleDot',
   pilihan_ganda_kompleks: 'faSquareCheck',
   menjodohkan: 'faRightLeft',
-  isian_singkat: 'faFont',
-  essay: 'faAlignLeft',
 };
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {

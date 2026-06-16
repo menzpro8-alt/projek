@@ -87,18 +87,6 @@ const QUESTION_TYPE_CARDS: {
     label: 'Menjodohkan',
     subtitle: 'Matching',
   },
-  {
-    type: 'isian_singkat',
-    icon: faFont,
-    label: 'Isian Singkat',
-    subtitle: 'Short Answer',
-  },
-  {
-    type: 'essay',
-    icon: faAlignLeft,
-    label: 'Essay',
-    subtitle: 'Uraian',
-  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -162,8 +150,6 @@ export default function AIGenerator() {
         pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
         pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
         menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
-        isian_singkat: 'Isian Singkat (exact short answer)',
-        essay: 'Essay / Uraian (open-ended with reference answer)',
       };
 
       const typesDescription = requestedTypes.map(t => `${t} (${typeLabels[t as QuestionType]})`).join(', ');
@@ -187,12 +173,6 @@ For type "pilihan_ganda_kompleks":
 
 For type "menjodohkan":
 {"type": "menjodohkan", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}, {"premise": "left item 2", "response": "right item 2"}], "points": 20}
-
-For type "isian_singkat":
-{"type": "isian_singkat", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "shortAnswer": "exact short answer", "points": 10}
-
-For type "essay":
-{"type": "essay", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
 
 Try to distribute the ${clampedCount} questions among the requested types: ${requestedTypes.join(', ')}. All questions must be in Bahasa Indonesia and appropriate for the specified grade level. Generate exactly ${clampedCount} questions.`;
 
@@ -275,8 +255,6 @@ Try to distribute the ${clampedCount} questions among the requested types: ${req
         pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
         pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
         menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
-        isian_singkat: 'Isian Singkat (exact short answer)',
-        essay: 'Essay / Uraian (open-ended with reference answer)',
       };
       
 
@@ -303,12 +281,6 @@ For type "pilihan_ganda_kompleks":
 
 For type "menjodohkan":
 {"type": "menjodohkan", "text": "question text", "difficulty": "${question.difficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}], "points": 20}
-
-For type "isian_singkat":
-{"type": "isian_singkat", "text": "question text", "difficulty": "${question.difficulty}", "shortAnswer": "exact short answer", "points": 10}
-
-For type "essay":
-{"type": "essay", "text": "question text", "difficulty": "${question.difficulty}", "essayReferenceAnswer": "reference answer text", "points": 25}
 `;
 
       

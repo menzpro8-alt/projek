@@ -49,9 +49,7 @@ const AVG_SCORE_DATA = [
 const QUESTION_TYPE_DATA = [
   { name: 'Pilihan Ganda', value: 45 },
   { name: 'PG Kompleks', value: 20 },
-  { name: 'Menjodohkan', value: 15 },
-  { name: 'Isian Singkat', value: 12 },
-  { name: 'Essay', value: 8 },
+  { name: 'Menjodohkan', value: 35 },
 ];
 
 const CHART_COLORS = ['#5B6ABF', '#00B894', '#FDCB6E', '#FF6B6B', '#74B9FF'];
@@ -272,7 +270,7 @@ export function TeacherDashboard() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <Button
                 variant="outline"
-                className="border-white/30 text-white hover:bg-white/15 hover:text-white h-9 text-sm"
+                className="bg-transparent border-white/30 text-white hover:bg-white/15 hover:text-white h-9 text-sm"
                 onClick={() => setView('teacher_question_editor')}
               >
                 <FontAwesomeIcon icon={faPlus} style={{ width: 14, height: 14 }} className="mr-2" />
@@ -280,7 +278,7 @@ export function TeacherDashboard() {
               </Button>
               <Button
                 variant="outline"
-                className="border-white/30 text-white hover:bg-white/15 hover:text-white h-9 text-sm"
+                className="bg-transparent border-white/30 text-white hover:bg-white/15 hover:text-white h-9 text-sm"
                 onClick={() => setView('teacher_monitor')}
               >
                 <FontAwesomeIcon icon={faEye} style={{ width: 14, height: 14 }} className="mr-2" />

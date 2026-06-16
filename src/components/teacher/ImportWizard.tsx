@@ -106,26 +106,6 @@ const TEMPLATE_EXAMPLE_ROWS = [
     'A:3|B:4|C:5|D:6',
     'B',
   ],
-  [
-    'isian_singkat',
-    'IPA (Fisika)',
-    'Kelas X',
-    'Hukum Newton',
-    'mudah',
-    'Satuan SI untuk gaya adalah...',
-    '',
-    'Newton',
-  ],
-  [
-    'essay',
-    'Bahasa Indonesia',
-    'Kelas XI',
-    'Teks Narasi',
-    'sulit',
-    'Analisis unsur intrinsik dalam cerita pendek...',
-    '',
-    'Jawaban referensi...',
-  ],
 ];
 
 // Mock validation results for demo
@@ -145,32 +125,6 @@ const MOCK_PARSED_ROWS: ParsedRow[] = [
   },
   {
     rowIndex: 3,
-    type: 'isian_singkat',
-    subject: 'IPA (Fisika)',
-    grade: 'Kelas X',
-    topic: 'Hukum Newton',
-    difficulty: 'mudah',
-    questionText: 'Satuan SI untuk gaya adalah...',
-    options: '',
-    correctAnswer: 'Newton',
-    isValid: true,
-    errors: [],
-  },
-  {
-    rowIndex: 4,
-    type: 'essay',
-    subject: 'Bahasa Indonesia',
-    grade: 'Kelas XI',
-    topic: 'Teks Narasi',
-    difficulty: 'sulit',
-    questionText: 'Analisis unsur intrinsik dalam cerita pendek...',
-    options: '',
-    correctAnswer: 'Jawaban referensi...',
-    isValid: true,
-    errors: [],
-  },
-  {
-    rowIndex: 5,
     type: 'pilihan_ganda',
     subject: '',
     grade: 'Kelas X',
@@ -323,8 +277,6 @@ export default function ImportWizard() {
         'pilihan_ganda',
         'pilihan_ganda_kompleks',
         'menjodohkan',
-        'isian_singkat',
-        'essay',
       ];
       const validDifficulties = ['mudah', 'sedang', 'sulit'];
 

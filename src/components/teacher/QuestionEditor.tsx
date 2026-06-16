@@ -80,18 +80,6 @@ const QUESTION_TYPE_CARDS: {
     label: 'Menjodohkan',
     description: 'Cocokkan pasangan yang benar',
   },
-  {
-    type: 'isian_singkat',
-    icon: faFont,
-    label: 'Isian Singkat',
-    description: 'Jawaban singkat / kata kunci',
-  },
-  {
-    type: 'essay',
-    icon: faAlignLeft,
-    label: 'Essay / Uraian',
-    description: 'Jawaban panjang dengan AI grading',
-  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -405,8 +393,6 @@ export default function QuestionEditor() {
     pilihan_ganda: faCircleDot,
     pilihan_ganda_kompleks: faSquareCheck,
     menjodohkan: faRightLeft,
-    isian_singkat: faFont,
-    essay: faAlignLeft,
   };
 
   // Preview content for student view

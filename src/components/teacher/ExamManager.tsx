@@ -74,8 +74,6 @@ const TYPE_ICONS: Record<QuestionType, typeof faCircleDot> = {
   pilihan_ganda: faCircleDot,
   pilihan_ganda_kompleks: faSquareCheck,
   menjodohkan: faRightLeft,
-  isian_singkat: faFont,
-  essay: faAlignLeft,
 };
 
 function getSubjectName(subjectId: string): string {
