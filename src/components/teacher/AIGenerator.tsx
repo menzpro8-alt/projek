@@ -46,11 +46,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useExamStore } from '@/lib/store';
-import { SUBJECTS, CLASS_GRADES } from '@/lib/mock-data';
+import { SUBJECTS, CLASS_GRADES, MOCK_QUESTIONS, MOCK_QUESTION_BANKS } from '@/lib/mock-data';
 import { saveGeneratedQuestions } from '@/app/actions/question';
 import {
   QuestionType,
   Difficulty,
+  Question,
+  QuestionBank,
   AIGeneratedQuestion,
   QUESTION_TYPE_LABELS,
   DIFFICULTY_LABELS,
@@ -109,6 +111,7 @@ export default function AIGenerator() {
     aiQuestionCount, setAiQuestionCount,
     aiQuestionTypes, setAiQuestionTypes,
     aiModel, setAiModel,
+    setView,
   } = useExamStore();
 
   const [topic, setTopic] = useState('');
@@ -417,35 +420,95 @@ For type "menjodohkan":
     );
   }, []);
 
-  const handleSaveAll = useCallback(async () => {
-    const selected = generatedQuestions.filter(q => q.isSelected);
-    if (selected.length === 0) return;
-    
+  const persistToMockData = useCallback((selected: AIGeneratedQuestion[], draft: boolean) => {
     const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
     const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
     const topicName = topic || subjectName;
 
-    const result = await saveGeneratedQuestions(selected, subjectName, gradeName, topicName);
-    
-    if (result.success) {
-      toast.success(`${result.count} soal berhasil disimpan!`, {
-        description: 'Semua soal terpilih telah ditambahkan ke database Supabase.',
-      });
-      // Optionally clear after saving
-      // setGeneratedQuestions(generatedQuestions.filter(q => !q.isSelected));
-    } else {
-      toast.error('Gagal menyimpan soal', {
-        description: result.error,
-      });
+    const newQuestions: Question[] = selected.map((q, i) => ({
+      id: `ai-${Date.now()}-${i}`,
+      type: q.type,
+      subjectId: aiSubject || 'custom',
+      classGradeId: aiGrade || 'c1',
+      topicId: 'custom',
+      difficulty: q.difficulty,
+      text: q.text,
+      points: q.points,
+      options: q.options,
+      matchingPairs: q.matchingPairs,
+      shortAnswer: q.shortAnswerKeywords?.map(kw => kw.keyword).join(', '),
+      essayReferenceAnswer: q.essayReferenceAnswer,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+
+    const bankName = draft
+      ? `Draft - ${subjectName} - ${topicName}`
+      : `Bank Soal ${subjectName} - ${topicName}`;
+
+    MOCK_QUESTIONS.push(...newQuestions);
+
+    let bank: QuestionBank | undefined;
+    if (!draft) {
+      bank = MOCK_QUESTION_BANKS.find(b => b.name === bankName);
+      if (bank) {
+        bank.questions.push(...newQuestions);
+        bank.questionCount = bank.questions.length;
+      }
     }
-  }, [generatedQuestions, aiSubject, customSubject, aiGrade, topic]);
+    if (!bank) {
+      const newBank: QuestionBank = {
+        id: `qb-ai-${Date.now()}`,
+        name: bankName,
+        subjectId: aiSubject || 'custom',
+        classGradeId: aiGrade || 'c1',
+        topicId: 'custom',
+        description: `Soal AI: ${subjectName} - ${topicName} (${gradeName})${draft ? ' [Draft]' : ''}`,
+        questionCount: newQuestions.length,
+        questions: newQuestions,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      MOCK_QUESTION_BANKS.push(newBank);
+    }
+
+    return newQuestions.length;
+  }, [aiSubject, customSubject, aiGrade, topic]);
+
+  const handleSaveAll = useCallback(async () => {
+    const selected = generatedQuestions.filter(q => q.isSelected);
+    if (selected.length === 0) return;
+
+    const count = persistToMockData(selected, false);
+
+    try {
+      const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
+      const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
+      const topicName = topic || subjectName;
+      await saveGeneratedQuestions(selected, subjectName, gradeName, topicName);
+    } catch {}
+
+    toast.success(`${count} soal berhasil disimpan!`, {
+      description: 'Soal telah ditambahkan ke Bank Soal.',
+    });
+
+    setGeneratedQuestions([]);
+    setView('teacher_question_bank');
+  }, [generatedQuestions, aiSubject, customSubject, aiGrade, topic, setView, persistToMockData]);
 
   const handleSaveDraft = useCallback(() => {
     const selected = generatedQuestions.filter(q => q.isSelected);
-    toast.success(`${selected.length} soal disimpan sebagai draft`, {
-      description: 'Soal disimpan sebagai draft dan dapat diedit nanti.',
+    if (selected.length === 0) return;
+
+    const count = persistToMockData(selected, true);
+
+    toast.success(`${count} soal disimpan sebagai draft`, {
+      description: 'Draft tersedia di Bank Soal dengan label "Draft - ...".',
     });
-  }, [generatedQuestions]);
+
+    setGeneratedQuestions([]);
+    setView('teacher_question_bank');
+  }, [generatedQuestions, setView, persistToMockData]);
 
   const handleClearAll = useCallback(() => {
     setGeneratedQuestions([]);
