@@ -393,6 +393,8 @@ export default function QuestionEditor() {
     pilihan_ganda: faCircleDot,
     pilihan_ganda_kompleks: faSquareCheck,
     menjodohkan: faRightLeft,
+    isian_singkat: faFont,
+    essay: faAlignLeft,
   };
 
   // Preview content for student view
