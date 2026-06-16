@@ -149,35 +149,19 @@ export default function AIGenerator() {
       const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
       const topicName = topic || subjectName;
 
-      const typeLabels: Record<QuestionType, string> = {
-        pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
-        pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
-        menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
+      const diff = mixedDifficulty ? 'sedang' : aiDifficulty;
+
+      const schema: Record<string, string> = {
+        pilihan_ganda: `{"type":"pilihan_ganda","text":"...","difficulty":"${diff}","options":[{"label":"A","text":"...","isCorrect":false},{"label":"B","text":"...","isCorrect":true},{"label":"C","text":"...","isCorrect":false},{"label":"D","text":"...","isCorrect":false},{"label":"E","text":"...","isCorrect":false}],"points":10}`,
+        pilihan_ganda_kompleks: `{"type":"pilihan_ganda_kompleks","text":"...","difficulty":"${diff}","options":[{"label":"A","text":"...","isCorrect":true},{"label":"B","text":"...","isCorrect":true},{"label":"C","text":"...","isCorrect":false},{"label":"D","text":"...","isCorrect":false},{"label":"E","text":"...","isCorrect":false}],"points":15}`,
+        menjodohkan: `{"type":"menjodohkan","text":"...","difficulty":"${diff}","matchingPairs":[{"premise":"left","response":"right"},{"premise":"left2","response":"right2"}],"points":20}`,
+        isian_singkat: `{"type":"isian_singkat","text":"...","difficulty":"${diff}","shortAnswerKeywords":[{"keyword":"answer keyword"}],"points":10}`,
+        essay: `{"type":"essay","text":"...","difficulty":"${diff}","essayReferenceAnswer":"reference answer","points":25}`,
       };
 
-      const typesDescription = requestedTypes.map(t => `${t} (${typeLabels[t as QuestionType]})`).join(', ');
+      const schemasBlock = requestedTypes.map(t => `${t}: ${schema[t]}`).join('\n');
 
-      const prompt = `Generate ${clampedCount} Indonesian education questions with the following specifications:
-- Subject: ${subjectName}
-- Class/Grade: ${gradeName}
-- Topic: ${topicName}
-- Difficulty: ${mixedDifficulty ? 'sedang' : aiDifficulty}
-- Question Types to include: ${typesDescription}
-
-STRICT RULE: The questions and answers MUST ONLY be about the specified Subject (${subjectName}) and Topic (${topicName}). If you generate questions about any other unrelated subject, it is a critical failure. All generated content must correctly match the subject!
-
-Return ONLY a valid JSON array (no markdown, no code blocks). Each element must be an object with a "type" field indicating the question type. Depending on the "type", the structure must be:
-
-For type "pilihan_ganda":
-{"type": "pilihan_ganda", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
-
-For type "pilihan_ganda_kompleks":
-{"type": "pilihan_ganda_kompleks", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
-
-For type "menjodohkan":
-{"type": "menjodohkan", "text": "question text", "difficulty": "${mixedDifficulty ? 'sedang' : aiDifficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}, {"premise": "left item 2", "response": "right item 2"}], "points": 20}
-
-Try to distribute the ${clampedCount} questions among the requested types: ${requestedTypes.join(', ')}. All questions must be in Bahasa Indonesia and appropriate for the specified grade level. Generate exactly ${clampedCount} questions.`;
+      const prompt = `Generate ${clampedCount} Indonesian ${subjectName} questions (kelas ${gradeName}, topik: ${topicName}, ${diff}). Tipe: ${requestedTypes.join(', ')}. Hanya tentang ${subjectName}. Return ONLY valid JSON array.\n${schemasBlock}\nBahasa Indonesia. Exactly ${clampedCount} questions.`;
 
       
       let result;
@@ -254,37 +238,19 @@ Try to distribute the ${clampedCount} questions among the requested types: ${req
         await window.puter.auth.signIn();
       }
       
-      const typeLabels: Record<QuestionType, string> = {
-        pilihan_ganda: 'Pilihan Ganda (single choice with options A-E)',
-        pilihan_ganda_kompleks: 'Pilihan Ganda Kompleks (multiple correct answers with options A-E)',
-        menjodohkan: 'Menjodohkan (matching pairs - left premise to right response)',
-      };
-      
-
       const subjectName = aiSubject === 'custom' ? customSubject : (SUBJECTS.find(s => s.id === aiSubject)?.name || aiSubject || 'General');
       const gradeName = CLASS_GRADES.find(c => c.id === aiGrade)?.name || aiGrade || 'General';
       const topicName = topic || subjectName;
 
-      const prompt = `Generate 1 Indonesian education question with the following specifications:
-- Subject: ${subjectName}
-- Class/Grade: ${gradeName}
-- Topic: ${topicName}
-- Difficulty: ${question.difficulty}
-- Question Type: ${question.type} (${typeLabels[question.type]})
+      const schema: Record<string, string> = {
+        pilihan_ganda: `{"type":"pilihan_ganda","text":"...","difficulty":"${question.difficulty}","options":[{"label":"A","text":"...","isCorrect":false},{"label":"B","text":"...","isCorrect":true},{"label":"C","text":"...","isCorrect":false},{"label":"D","text":"...","isCorrect":false},{"label":"E","text":"...","isCorrect":false}],"points":10}`,
+        pilihan_ganda_kompleks: `{"type":"pilihan_ganda_kompleks","text":"...","difficulty":"${question.difficulty}","options":[{"label":"A","text":"...","isCorrect":true},{"label":"B","text":"...","isCorrect":true},{"label":"C","text":"...","isCorrect":false},{"label":"D","text":"...","isCorrect":false},{"label":"E","text":"...","isCorrect":false}],"points":15}`,
+        menjodohkan: `{"type":"menjodohkan","text":"...","difficulty":"${question.difficulty}","matchingPairs":[{"premise":"left","response":"right"}],"points":20}`,
+        isian_singkat: `{"type":"isian_singkat","text":"...","difficulty":"${question.difficulty}","shortAnswerKeywords":[{"keyword":"answer keyword"}],"points":10}`,
+        essay: `{"type":"essay","text":"...","difficulty":"${question.difficulty}","essayReferenceAnswer":"reference answer","points":25}`,
+      };
 
-STRICT RULE: The questions and answers MUST ONLY be about the specified Subject (${subjectName}) and Topic (${topicName}). If you generate questions about any other unrelated subject, it is a critical failure. All generated content must correctly match the subject!
-
-Return ONLY a valid JSON array containing exactly 1 object with a "type" field indicating the question type. Depending on the "type", the structure must be:
-
-For type "pilihan_ganda":
-{"type": "pilihan_ganda", "text": "question text", "difficulty": "${question.difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": false}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 10}
-
-For type "pilihan_ganda_kompleks":
-{"type": "pilihan_ganda_kompleks", "text": "question text", "difficulty": "${question.difficulty}", "options": [{"label": "A", "text": "option text", "isCorrect": true}, {"label": "B", "text": "option text", "isCorrect": true}, {"label": "C", "text": "option text", "isCorrect": false}, {"label": "D", "text": "option text", "isCorrect": false}, {"label": "E", "text": "option text", "isCorrect": false}], "points": 15}
-
-For type "menjodohkan":
-{"type": "menjodohkan", "text": "question text", "difficulty": "${question.difficulty}", "matchingPairs": [{"premise": "left item", "response": "right item"}], "points": 20}
-`;
+      const prompt = `Generate 1 Indonesian ${subjectName} question (kelas ${gradeName}, topik: ${topicName}, ${question.difficulty}). Tipe: ${question.type}. Hanya tentang ${subjectName}. Return ONLY valid JSON array with 1 object.\n${question.type}: ${schema[question.type]}\nBahasa Indonesia.`;
 
       
       let result;
