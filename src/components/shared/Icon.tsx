@@ -1,6 +1,6 @@
 'use client';
 
-import { config, findIconDefinition, library } from '@fortawesome/fontawesome-svg-core';
+import { config, findIconDefinition, library, IconName } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { fas } from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,7 @@ interface IconProps {
 }
 
 export function Icon({ icon, size = 'md', className }: IconProps) {
-  const iconDef = findIconDefinition({ prefix: 'fas', iconName: icon });
+  const iconDef = findIconDefinition({ prefix: 'fas', iconName: icon as IconName });
 
   if (!iconDef) {
     // Fallback: return a small placeholder
